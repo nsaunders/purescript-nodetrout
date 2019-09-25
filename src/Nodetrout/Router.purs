@@ -4,8 +4,11 @@ import Prelude
 import Control.Monad.Except (ExceptT, throwError)
 import Data.Array (null, uncons)
 import Data.HTTP.Method (fromString) as Method
+import Data.List.NonEmpty (head) as NEL
 import Data.Maybe (Maybe(..))
+import Data.MediaType (MediaType)
 import Data.Symbol (SProxy(..), reflectSymbol)
+import Data.Tuple (Tuple)
 import Network.HTTP (status404, status405)
 import Nodetrout.Context (Context)
 import Nodetrout.Error (HTTPError(..))
@@ -15,7 +18,7 @@ import Type.Data.Symbol (class IsSymbol)
 import Type.Proxy (Proxy(..))
 import Type.Trout (type (:>), type (:=), Lit, Resource)
 import Type.Trout (Method) as Trout
-import Type.Trout.ContentType (class AllMimeRender)
+import Type.Trout.ContentType (class AllMimeRender, allMimeRender)
 
 class Router layout handlers m result | layout -> handlers, layout -> result where
   route :: Proxy layout -> handlers -> Context -> ExceptT HTTPError m result
@@ -45,11 +48,11 @@ instance routerMethod ::
   , IsSymbol method
   , AllMimeRender body contentTypes rendered
   , Row.Cons method (ExceptT HTTPError m body) handlers' handlers
-  ) => Router (Trout.Method method body contentTypes) (Record handlers) m Unit where
+  ) => Router (Trout.Method method body contentTypes) (Record handlers) m (Tuple MediaType rendered) where
   route layout handlers context = do
     routeEnd (SProxy :: SProxy method) context
     body <- Record.get (SProxy :: SProxy method) handlers
-    pure unit -- todo content negotiation and render body
+    pure $ NEL.head $ allMimeRender (Proxy :: Proxy contentTypes) body -- todo: content negotiation
 
 instance routerResource ::
   ( Monad m

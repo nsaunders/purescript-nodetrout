@@ -3,6 +3,7 @@ module Example.Greeting where
 import Prelude
 import Control.Monad.Except (ExceptT)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
+import Data.Argonaut (class EncodeJson, encodeJson)
 import Data.Maybe (Maybe(Nothing))
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -15,11 +16,15 @@ import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
 import Type.Trout (type (:=), type (:>), Lit, Resource)
 import Type.Trout.ContentType.HTML (class EncodeHTML, HTML)
+import Type.Trout.ContentType.JSON (JSON)
 import Type.Trout.Method (Get)
 
 data Greeting = Greeting String
 
-type Site = "greeting" := Lit "greeting" :> Resource (Get Greeting HTML)
+type Site = "greeting" := Lit "greeting" :> Resource (Get Greeting JSON)
+
+instance encodeJsonGreeting :: EncodeJson Greeting where
+  encodeJson (Greeting g) = encodeJson g
 
 instance encodeHTMLGreeting :: EncodeHTML Greeting where
   encodeHTML (Greeting g) = p (text g)
