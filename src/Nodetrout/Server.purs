@@ -46,7 +46,6 @@ serve layout handlers runM req res = launchAff_ $ runM do
       setHeader res "content-type" contentType
       writeResponse rs content
       Stream.end rs $ pure unit
-      --Stream.writeString rs UTF8 rendered (pure unit) *> Stream.end rs (pure unit)
 
 class ResponseWritable content where
   writeResponse :: Stream.Writable () -> content -> Effect Unit
