@@ -10,6 +10,7 @@
     , "http-methods"
     , "node-http"
     , "psci-support"
+    , "strings-extra"
     , "trout"
     ]
 , packages =
