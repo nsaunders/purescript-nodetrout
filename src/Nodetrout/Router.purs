@@ -4,12 +4,12 @@ import Prelude
 import Control.Monad.Except (ExceptT, throwError)
 import Data.Array (null, uncons)
 import Data.HTTP.Method (fromString) as Method
-import Data.List.NonEmpty (head) as NEL
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
 import Data.Symbol (SProxy(..), reflectSymbol)
 import Data.Tuple (Tuple)
 import Network.HTTP (status404, status405)
+import Nodetrout.Content (negotiate) as Content
 import Nodetrout.Context (Context)
 import Nodetrout.Error (HTTPError(..))
 import Prim.Row (class Cons) as Row
@@ -52,7 +52,8 @@ instance routerMethod ::
   route layout handlers context = do
     routeEnd (SProxy :: SProxy method) context
     body <- Record.get (SProxy :: SProxy method) handlers
-    pure $ NEL.head $ allMimeRender (Proxy :: Proxy contentTypes) body -- todo: content negotiation
+    content <- Content.negotiate context $ allMimeRender (Proxy :: Proxy contentTypes) body
+    pure content
 
 instance routerResource ::
   ( Monad m

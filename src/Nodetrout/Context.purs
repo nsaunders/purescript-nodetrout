@@ -12,12 +12,14 @@ import Data.Tuple (Tuple(..))
 import Data.String.Common (split)
 import Data.String.CodeUnits (drop, indexOf, take)
 import Data.String.Pattern (Pattern(..))
-import Node.HTTP (Request, requestMethod, requestURL)
+import Foreign.Object (Object)
+import Node.HTTP (Request, requestHeaders, requestMethod, requestURL)
 
 type Context =
   { method :: Either Method CustomMethod
   , path :: Array String
   , query :: Array (Tuple String (Maybe String))
+  , headers :: Object String
   }
 
 fromRequest :: Request -> Context
@@ -28,8 +30,9 @@ fromRequest req =
     queryPosition = indexOf (Pattern "?") url
     path = filter (_ /= "") $ split (Pattern "/") $ fromMaybe url (flip take url <$> queryPosition)
     query = fromMaybe [] $ un FormURLEncoded <$> (decode =<< (flip drop url <$> queryPosition))
+    headers = requestHeaders req
   in
-    { method, path, query }
+    { method, path, query, headers }
 
 shiftPath :: Context -> Tuple (Maybe String) Context
-shiftPath { method, path, query } = Tuple (head path) { method, path: fromMaybe [] $ tail path, query }
+shiftPath context@{ path } = Tuple (head path) $ context { path = fromMaybe [] $ tail path }

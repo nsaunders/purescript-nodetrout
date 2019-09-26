@@ -14,14 +14,14 @@ import Nodetrout.Server (serve)
 import Text.Smolder.HTML (p)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
-import Type.Trout (type (:=), type (:>), Lit, Resource)
+import Type.Trout (type (:=), type (:>), type (:<|>), Lit, Resource)
 import Type.Trout.ContentType.HTML (class EncodeHTML, HTML)
 import Type.Trout.ContentType.JSON (JSON)
 import Type.Trout.Method (Get)
 
 data Greeting = Greeting String
 
-type Site = "greeting" := Lit "greeting" :> Resource (Get Greeting JSON)
+type Site = "greeting" := Lit "greeting" :> Resource (Get Greeting (JSON :<|> HTML))
 
 instance encodeJsonGreeting :: EncodeJson Greeting where
   encodeJson (Greeting g) = encodeJson g
