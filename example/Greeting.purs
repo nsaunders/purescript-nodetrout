@@ -4,6 +4,7 @@ import Prelude
 import Control.Monad.Except (ExceptT)
 import Control.Monad.Reader (ReaderT, ask, runReaderT)
 import Data.Argonaut (class EncodeJson, encodeJson)
+import Data.Array (replicate)
 import Data.Maybe (Maybe(Nothing))
 import Effect (Effect)
 import Effect.Aff (Aff)
@@ -22,6 +23,7 @@ import Type.Trout.Method (Get)
 data Greeting = Greeting String
 
 type Site = "greeting" := Lit "greeting" :> Resource (Get Greeting (JSON :<|> HTML))
+       :<|> "greetings" := Lit "greetings" :> Resource (Get (Array Greeting) (JSON))
 
 instance encodeJsonGreeting :: EncodeJson Greeting where
   encodeJson (Greeting g) = encodeJson g
@@ -35,15 +37,16 @@ runAppM = flip runReaderT
 site :: Proxy Site
 site = Proxy
 
-greetingResource
+resources
   :: forall m
    . Monad m
-  => {"GET" :: ExceptT HTTPError (ReaderT String m) Greeting}
-greetingResource =
-  {"GET": Greeting <$> ask}
-
-resources :: forall m. Monad m => { greeting :: { "GET" :: ExceptT HTTPError (ReaderT String m) Greeting } }
-resources = { greeting: greetingResource }
+  => { greeting :: { "GET" :: ExceptT HTTPError (ReaderT String m) Greeting }
+     , greetings :: { "GET" :: ExceptT HTTPError (ReaderT String m) (Array Greeting) }
+     }
+resources =
+  { greeting: { "GET": Greeting <$> ask }
+  , greetings: { "GET": replicate 5 <<< Greeting <$> ask }
+  }
 
 main :: Effect Unit
 main = do

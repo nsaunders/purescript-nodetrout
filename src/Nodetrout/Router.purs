@@ -1,8 +1,10 @@
 module Nodetrout.Router where
   
 import Prelude
-import Control.Monad.Except (ExceptT, throwError)
+import Control.Monad.Except (ExceptT, runExceptT, throwError)
+import Control.Monad.Trans.Class (lift)
 import Data.Array (null, uncons)
+import Data.Either (Either(..))
 import Data.HTTP.Method (fromString) as Method
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
@@ -11,17 +13,41 @@ import Data.Tuple (Tuple)
 import Network.HTTP (status404, status405)
 import Nodetrout.Content (negotiate) as Content
 import Nodetrout.Context (Context)
+import Nodetrout.Error (select) as Error
 import Nodetrout.Error (HTTPError(..))
-import Prim.Row (class Cons) as Row
-import Record (get) as Record
+import Prim.Row (class Cons, class Lacks) as Row
+import Record (delete, get) as Record
 import Type.Data.Symbol (class IsSymbol)
 import Type.Proxy (Proxy(..))
-import Type.Trout (type (:>), type (:=), Lit, Resource)
+import Type.Trout (type (:<|>), type (:>), type (:=), Lit, Resource)
 import Type.Trout (Method) as Trout
 import Type.Trout.ContentType (class AllMimeRender, allMimeRender)
 
 class Router layout handlers m result | layout -> handlers, layout -> result where
   route :: Proxy layout -> handlers -> Context -> ExceptT HTTPError m result
+
+instance routerAltNamed ::
+  ( Monad m
+  , Router layout handler m result
+  , Router otherLayout (Record otherHandlers) m result
+  , IsSymbol name
+  , Row.Cons name handler otherHandlers handlers
+  , Row.Lacks name otherHandlers
+  ) => Router (name := layout :<|> otherLayout) (Record handlers) m result where
+  route _ handlers context = do
+    eitherResult1 <- lift $ runExceptT $ route (Proxy :: Proxy layout) (Record.get name handlers) context
+    case eitherResult1 of
+      Right result ->
+        pure result
+      Left error1 -> do
+        eitherResult2 <- lift $ runExceptT $ route (Proxy :: Proxy otherLayout) (Record.delete name handlers) context
+        case eitherResult2 of
+          Right result ->
+            pure result
+          Left error2 ->
+            throwError $ Error.select error1 error2
+    where
+      name = SProxy :: SProxy name
 
 instance routerNamed ::
   ( Monad m
