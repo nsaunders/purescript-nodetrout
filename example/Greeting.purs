@@ -23,7 +23,7 @@ import Type.Trout.Method (Get)
 data Greeting = Greeting String
 
 type Site = "greeting" := Lit "greeting" :> Resource (Get Greeting (JSON :<|> HTML))
-       :<|> "greetings" := Lit "greetings" :> Resource (Get (Array Greeting) (JSON))
+       :<|> "greetings" := Lit "greetings" :> Resource (Get (Array Greeting) JSON)
 
 instance encodeJsonGreeting :: EncodeJson Greeting where
   encodeJson (Greeting g) = encodeJson g
