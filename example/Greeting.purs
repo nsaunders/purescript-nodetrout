@@ -31,7 +31,7 @@ instance encodeJsonGreeting :: EncodeJson Greeting where
 instance encodeHTMLGreeting :: EncodeHTML Greeting where
   encodeHTML (Greeting g) = p (text g)
 
-runAppM ∷ ∀ a. String -> ReaderT String Aff a → Aff a
+runAppM :: forall a. String -> ReaderT String Aff a -> Aff a
 runAppM = flip runReaderT
 
 site :: Proxy Site
