@@ -107,13 +107,3 @@ instance routerResource ::
   , Router layout handlers (ExceptT HTTPError m result)
   ) => Router (Resource layout) handlers (ExceptT HTTPError m result) where
   route _ = route (Proxy :: Proxy layout)
-
-routeEnd
-  :: forall m method
-   . Monad m
-  => IsSymbol method
-  => SProxy method
-  -> Context
-  -> ExceptT HTTPError m Unit
-routeEnd methodProxy context = do
-  pure unit
