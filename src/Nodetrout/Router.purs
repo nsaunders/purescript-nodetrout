@@ -70,18 +70,21 @@ instance routerLit ::
       _ ->
         throwError $ HTTPError { status: status404, details: Nothing }
 
-instance routerCapture :: ( Monad m
-                          , Router e h (ExceptT HTTPError m out)
-                          , FromPathPiece v
-                          )
-                          => Router (Capture c v :> e) (v -> h) (ExceptT HTTPError m out) where
-  route _ r ctx =
-    case uncons ctx.path of
-      Nothing -> throwError (HTTPError { status: status404, details: Nothing })
+instance routerCapture ::
+  ( Monad m
+  , Router layout handlers (ExceptT HTTPError m next)
+  , FromPathPiece value
+  ) => Router (Capture label value :> layout) (value -> handlers) (ExceptT HTTPError m next) where
+  route _ handlers context =
+    case uncons context.path of
+      Nothing ->
+        throwError $ HTTPError { status: status404, details: Nothing }
       Just { head, tail } ->
         case fromPathPiece head of
-          Left err -> throwError (HTTPError { status: status400, details: Just err })
-          Right x -> route (Proxy :: Proxy e) (r x) ctx { path = tail }
+          Left error ->
+            throwError $ HTTPError { status: status400, details: Just error }
+          Right value ->
+            route (Proxy :: Proxy layout) (handlers value) context { path = tail }
 
 instance routerMethod ::
   ( Monad m
