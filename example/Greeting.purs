@@ -41,7 +41,7 @@ instance encodeHTMLGreeting :: EncodeHTML Greeting where
   encodeHTML = show >>> text >>> span
 
 type Site = "greetings" := Lit "greetings" :> Resource (Get (Array Greeting) JSON)
-       :<|> "greeting" := "greeting" :/ Capture "id" Int :> Resource (Get Greeting (JSON :<|> HTML))
+       :<|> "greeting" := "greetings" :/ Capture "id" Int :> Resource (Get Greeting (JSON :<|> HTML))
 
 site :: Proxy Site
 site = Proxy
