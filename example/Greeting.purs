@@ -61,12 +61,12 @@ resources
 resources =
   { greeting: \id ->
     { "GET": do
-        greeting <- asks (find (\g -> greetingId g == id))
-        case greeting of
+        greetingMatch <- asks $ find ((_ == id) <<< greetingId)
+        case greetingMatch of
+          Just greeting ->
+            pure greeting
           Nothing ->
             throwError $ HTTPError { status: status404, details: Just $ "No greeting matches id " <> show id <> "." }
-          Just g ->
-            pure g
     }
   , greetings: { "GET": asks toArray }
   }
