@@ -1,28 +1,33 @@
 module Example.Greeting where
 
 import Prelude
-import Control.Monad.Except (ExceptT)
+import Control.Monad.Except (ExceptT, throwError)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Data.Argonaut (class EncodeJson)
 import Data.Argonaut.Encode.Generic.Rep (genericEncodeJson)
+import Data.Foldable (find)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
-import Data.Maybe (Maybe(Nothing))
-import Data.Array.NonEmpty (NonEmptyArray, cons', head, toArray)
+import Data.Maybe (Maybe(..))
+import Data.Array.NonEmpty (NonEmptyArray, cons', toArray)
 import Effect (Effect)
 import Effect.Console (log)
+import Network.HTTP (status404)
 import Node.HTTP (createServer, listen)
-import Nodetrout.Error (HTTPError)
+import Nodetrout.Error (HTTPError(..))
 import Nodetrout.Server (serve)
 import Text.Smolder.HTML (span)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
-import Type.Trout (type (:=), type (:>), type (:<|>), Lit, Resource)
+import Type.Trout (type (:=), type (:>), type (:<|>), Capture, Lit, Resource)
 import Type.Trout.ContentType.HTML (class EncodeHTML, HTML)
 import Type.Trout.ContentType.JSON (JSON)
 import Type.Trout.Method (Get)
 
 newtype Greeting = Greeting { id :: Int, message :: String }
+
+greetingId :: Greeting -> Int
+greetingId (Greeting { id }) = id
 
 derive instance genericGreeting :: Generic Greeting _
 
@@ -36,7 +41,7 @@ instance encodeHTMLGreeting :: EncodeHTML Greeting where
   encodeHTML = show >>> text >>> span
 
 type Site = "greetings" := Lit "greetings" :> Resource (Get (Array Greeting) JSON)
-       :<|> "greeting" := Lit "greeting" :> Resource (Get Greeting (JSON :<|> HTML))
+       :<|> "greeting" := Lit "greeting" :> Capture "id" Int :> Resource (Get Greeting (JSON :<|> HTML))
 
 site :: Proxy Site
 site = Proxy
@@ -50,11 +55,19 @@ greetings = map Greeting $ cons' { id: 1, message: "Hi" }
 resources
   :: forall m
    . Monad m
-  => { greeting :: { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) Greeting }
+  => { greeting :: Int -> { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) Greeting }
      , greetings :: { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) (Array Greeting) }
      }
 resources =
-  { greeting: { "GET": asks head }
+  { greeting: \id ->
+    { "GET": do
+        greeting <- asks (find (\g -> greetingId g == id))
+        case greeting of
+          Nothing ->
+            throwError $ HTTPError { status: status404, details: Just $ "No greeting matches id " <> show id <> "." }
+          Just g ->
+            pure g
+    }
   , greetings: { "GET": asks toArray }
   }
 

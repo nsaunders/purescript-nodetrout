@@ -10,7 +10,7 @@ import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
 import Data.Symbol (SProxy(..), reflectSymbol)
 import Data.Tuple (Tuple)
-import Network.HTTP (status404, status405)
+import Network.HTTP (status400, status404, status405)
 import Nodetrout.Content (negotiate) as Content
 import Nodetrout.Context (Context)
 import Nodetrout.Error (select) as Error
@@ -19,9 +19,10 @@ import Prim.Row (class Cons, class Lacks) as Row
 import Record (delete, get) as Record
 import Type.Data.Symbol (class IsSymbol)
 import Type.Proxy (Proxy(..))
-import Type.Trout (type (:<|>), type (:>), type (:=), Lit, Resource)
+import Type.Trout (type (:<|>), type (:>), type (:=), Capture, Lit, Resource)
 import Type.Trout (Method) as Trout
 import Type.Trout.ContentType (class AllMimeRender, allMimeRender)
+import Type.Trout.PathPiece (class FromPathPiece, fromPathPiece)
 
 class Router layout handlers result | layout -> handlers, layout -> result where
   route :: Proxy layout -> handlers -> Context -> result
@@ -68,6 +69,19 @@ instance routerLit ::
         route (Proxy :: Proxy layout) handlers (context { path = tail })
       _ ->
         throwError $ HTTPError { status: status404, details: Nothing }
+
+instance routerCapture :: ( Monad m
+                          , Router e h (ExceptT HTTPError m out)
+                          , FromPathPiece v
+                          )
+                          => Router (Capture c v :> e) (v -> h) (ExceptT HTTPError m out) where
+  route _ r ctx =
+    case uncons ctx.path of
+      Nothing -> throwError (HTTPError { status: status404, details: Nothing })
+      Just { head, tail } ->
+        case fromPathPiece head of
+          Left err -> throwError (HTTPError { status: status400, details: Just err })
+          Right x -> route (Proxy :: Proxy e) (r x) ctx { path = tail }
 
 instance routerMethod ::
   ( Monad m
