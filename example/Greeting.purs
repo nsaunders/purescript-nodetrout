@@ -19,7 +19,7 @@ import Nodetrout.Server (serve)
 import Text.Smolder.HTML (span)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
-import Type.Trout (type (:=), type (:>), type (:<|>), Capture, Lit, Resource)
+import Type.Trout (type (:=), type (:/), type (:>), type (:<|>), Capture, Lit, Resource)
 import Type.Trout.ContentType.HTML (class EncodeHTML, HTML)
 import Type.Trout.ContentType.JSON (JSON)
 import Type.Trout.Method (Get)
@@ -41,7 +41,7 @@ instance encodeHTMLGreeting :: EncodeHTML Greeting where
   encodeHTML = show >>> text >>> span
 
 type Site = "greetings" := Lit "greetings" :> Resource (Get (Array Greeting) JSON)
-       :<|> "greeting" := Lit "greeting" :> Capture "id" Int :> Resource (Get Greeting (JSON :<|> HTML))
+       :<|> "greeting" := "greeting" :/ Capture "id" Int :> Resource (Get Greeting (JSON :<|> HTML))
 
 site :: Proxy Site
 site = Proxy
