@@ -1,7 +1,7 @@
 module Nodetrout.Server where
   
 import Prelude
-import Control.Monad.Except (runExceptT)
+import Control.Monad.Except (ExceptT, runExceptT)
 import Data.Either (Either(..))
 import Data.Maybe (fromMaybe)
 import Data.MediaType (MediaType(..))
@@ -25,7 +25,7 @@ serve
    . Monad m
   => MonadEffect m
   => ResponseWritable content
-  => Router layout (Record handlers) m (Tuple MediaType content)
+  => Router layout (Record handlers) (ExceptT HTTPError m (Tuple MediaType content))
   => Proxy layout
   -> Record handlers
   -> (m ~> Aff)

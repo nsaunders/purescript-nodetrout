@@ -23,17 +23,17 @@ import Type.Trout (type (:<|>), type (:>), type (:=), Lit, Resource)
 import Type.Trout (Method) as Trout
 import Type.Trout.ContentType (class AllMimeRender, allMimeRender)
 
-class Router layout handlers m result | layout -> handlers, layout -> result where
-  route :: Proxy layout -> handlers -> Context -> ExceptT HTTPError m result
+class Router layout handlers result | layout -> handlers, layout -> result where
+  route :: Proxy layout -> handlers -> Context -> result
 
 instance routerAltNamed ::
   ( Monad m
-  , Router layout handler m result
-  , Router otherLayout (Record otherHandlers) m result
+  , Router layout handler (ExceptT HTTPError m result)
+  , Router otherLayout (Record otherHandlers) (ExceptT HTTPError m result)
   , IsSymbol name
   , Row.Cons name handler otherHandlers handlers
   , Row.Lacks name otherHandlers
-  ) => Router (name := layout :<|> otherLayout) (Record handlers) m result where
+  ) => Router (name := layout :<|> otherLayout) (Record handlers) (ExceptT HTTPError m result) where
   route _ handlers context = do
     eitherResult1 <- lift $ runExceptT $ route (Proxy :: Proxy layout) (Record.get name handlers) context
     case eitherResult1 of
@@ -51,40 +51,44 @@ instance routerAltNamed ::
 
 instance routerNamed ::
   ( Monad m
-  , Router layout handler m result
+  , Router layout handler (ExceptT HTTPError m result)
   , IsSymbol name
   , Row.Cons name handler () handlers
-  ) => Router (name := layout) (Record handlers) m result where
+  ) => Router (name := layout) (Record handlers) (ExceptT HTTPError m result) where
   route _ handlers = route (Proxy :: Proxy layout) (Record.get (SProxy :: SProxy name) handlers)
 
 instance routerLit ::
   ( Monad m
-  , Router layout handlers m result
+  , Router layout handlers (ExceptT HTTPError m result)
   , IsSymbol segment
-  ) => Router (Lit segment :> layout) handlers m result where
-    route _ handlers context =
-      case uncons context.path of
-        Just { head, tail } | head == reflectSymbol (SProxy :: SProxy segment) ->
-          route (Proxy :: Proxy layout) handlers (context { path = tail })
-        _ ->
-          throwError $ HTTPError { status: status404, details: Nothing }
+  ) => Router (Lit segment :> layout) handlers (ExceptT HTTPError m result) where
+  route _ handlers context =
+    case uncons context.path of
+      Just { head, tail } | head == reflectSymbol (SProxy :: SProxy segment) ->
+        route (Proxy :: Proxy layout) handlers (context { path = tail })
+      _ ->
+        throwError $ HTTPError { status: status404, details: Nothing }
 
 instance routerMethod ::
   ( Monad m
   , IsSymbol method
   , AllMimeRender body contentTypes rendered
   , Row.Cons method (ExceptT HTTPError m body) handlers' handlers
-  ) => Router (Trout.Method method body contentTypes) (Record handlers) m (Tuple MediaType rendered) where
+  ) => Router (Trout.Method method body contentTypes) (Record handlers) (ExceptT HTTPError m (Tuple MediaType rendered)) where
   route layout handlers context = do
-    routeEnd (SProxy :: SProxy method) context
-    body <- Record.get (SProxy :: SProxy method) handlers
+    let methodP = SProxy :: SProxy method
+    when (not $ null context.path)
+      $ throwError $ HTTPError { status: status404, details: Nothing }
+    when (context.method /= Method.fromString (reflectSymbol methodP))
+      $ throwError $ HTTPError { status: status405, details: Nothing }
+    body <- Record.get methodP handlers
     content <- Content.negotiate context $ allMimeRender (Proxy :: Proxy contentTypes) body
     pure content
 
 instance routerResource ::
   ( Monad m
-  , Router layout handlers m result
-  ) => Router (Resource layout) handlers m result where
+  , Router layout handlers (ExceptT HTTPError m result)
+  ) => Router (Resource layout) handlers (ExceptT HTTPError m result) where
   route _ = route (Proxy :: Proxy layout)
 
 routeEnd
@@ -95,8 +99,4 @@ routeEnd
   -> Context
   -> ExceptT HTTPError m Unit
 routeEnd methodProxy context = do
-  when (not $ null context.path)
-    $ throwError $ HTTPError { status: status404, details: Nothing }
-  when (context.method /= Method.fromString (reflectSymbol methodProxy))
-    $ throwError $ HTTPError { status: status405, details: Nothing }
   pure unit
