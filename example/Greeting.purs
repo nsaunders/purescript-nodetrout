@@ -5,11 +5,13 @@ import Control.Monad.Except (ExceptT, throwError)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Data.Argonaut (class EncodeJson)
 import Data.Argonaut.Encode.Generic.Rep (genericEncodeJson)
+import Data.Array.NonEmpty (NonEmptyArray, cons', filter, toArray)
 import Data.Foldable (find)
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe(..))
-import Data.Array.NonEmpty (NonEmptyArray, cons', toArray)
+import Data.String.CodeUnits (contains) as String
+import Data.String.Pattern (Pattern(..))
 import Effect (Effect)
 import Effect.Console (log)
 import Network.HTTP (status404)
@@ -19,7 +21,7 @@ import Nodetrout.Server (serve)
 import Text.Smolder.HTML (span)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
-import Type.Trout (type (:=), type (:/), type (:>), type (:<|>), Capture, Lit, Resource)
+import Type.Trout (type (:=), type (:/), type (:>), type (:<|>), Capture, Lit, Resource, QueryParam)
 import Type.Trout.ContentType.HTML (class EncodeHTML, HTML)
 import Type.Trout.ContentType.JSON (JSON)
 import Type.Trout.Method (Get)
@@ -28,6 +30,9 @@ newtype Greeting = Greeting { id :: Int, message :: String }
 
 greetingId :: Greeting -> Int
 greetingId (Greeting { id }) = id
+
+greetingMessage :: Greeting -> String
+greetingMessage (Greeting { message }) = message
 
 derive instance genericGreeting :: Generic Greeting _
 
@@ -40,7 +45,8 @@ instance encodeJsonGreeting :: EncodeJson Greeting where
 instance encodeHTMLGreeting :: EncodeHTML Greeting where
   encodeHTML = show >>> text >>> span
 
-type Site = "greetings" := Lit "greetings" :> Resource (Get (Array Greeting) JSON)
+type Site = "greetingSearch" := "greetings" :/ QueryParam "filter" String :> Resource (Get (Array Greeting) JSON)
+       :<|> "greetings" := Lit "greetings" :> Resource (Get (Array Greeting) JSON)
        :<|> "greeting" := "greetings" :/ Capture "id" Int :> Resource (Get Greeting (JSON :<|> HTML))
 
 site :: Proxy Site
@@ -57,6 +63,7 @@ resources
    . Monad m
   => { greeting :: Int -> { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) Greeting }
      , greetings :: { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) (Array Greeting) }
+     , greetingSearch :: String -> { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) (Array Greeting) }
      }
 resources =
   { greeting: \id ->
@@ -69,6 +76,7 @@ resources =
             throwError $ HTTPError { status: status404, details: Just $ "No greeting matches id " <> show id <> "." }
     }
   , greetings: { "GET": asks toArray }
+  , greetingSearch: \message -> { "GET": asks $ filter ((String.contains $ Pattern message) <<< greetingMessage) }
   }
 
 main :: Effect Unit

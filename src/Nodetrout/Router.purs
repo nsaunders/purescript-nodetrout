@@ -5,11 +5,12 @@ import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Trans.Class (lift)
 import Data.Array (null, uncons)
 import Data.Either (Either(..))
+import Data.Foldable (find)
 import Data.HTTP.Method (fromString) as Method
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
 import Data.Symbol (SProxy(..), reflectSymbol)
-import Data.Tuple (Tuple)
+import Data.Tuple (Tuple, fst, snd)
 import Network.HTTP (status400, status404, status405)
 import Nodetrout.Content (negotiate) as Content
 import Nodetrout.Context (Context)
@@ -19,7 +20,7 @@ import Prim.Row (class Cons, class Lacks) as Row
 import Record (delete, get) as Record
 import Type.Data.Symbol (class IsSymbol)
 import Type.Proxy (Proxy(..))
-import Type.Trout (type (:<|>), type (:>), type (:=), Capture, Lit, Resource)
+import Type.Trout (type (:<|>), type (:>), type (:=), Capture, Lit, Resource, QueryParam)
 import Type.Trout (Method) as Trout
 import Type.Trout.ContentType (class AllMimeRender, allMimeRender)
 import Type.Trout.PathPiece (class FromPathPiece, fromPathPiece)
@@ -86,6 +87,26 @@ instance routerCapture ::
           Right value ->
             route (Proxy :: Proxy layout) (handlers value) context { path = tail }
 
+instance routerQueryParam ::
+  ( Monad m
+  , Router layout handlers (ExceptT HTTPError m next)
+  , IsSymbol label
+  , FromPathPiece value
+  ) => Router (QueryParam label value :> layout) (value -> handlers) (ExceptT HTTPError m next) where
+  route _ handlers context =
+    let
+      label = reflectSymbol (SProxy :: SProxy label)
+    in
+      case (join $ snd <$> find ((_ == label) <<< fst) context.query) of
+        Nothing ->
+          throwError $ HTTPError { status: status400, details: Just $ "Missing query parameter " <> label }
+        Just value ->
+          case fromPathPiece value of
+            Left error ->
+              throwError $ HTTPError { status: status400, details: Just error }
+            Right v ->
+              route (Proxy :: Proxy layout) (handlers v) context
+
 instance routerMethod ::
   ( Monad m
   , IsSymbol method
@@ -93,12 +114,12 @@ instance routerMethod ::
   , Row.Cons method (ExceptT HTTPError m body) handlers' handlers
   ) => Router (Trout.Method method body contentTypes) (Record handlers) (ExceptT HTTPError m (Tuple MediaType rendered)) where
   route layout handlers context = do
-    let methodP = SProxy :: SProxy method
+    let method = SProxy :: SProxy method
     when (not $ null context.path)
       $ throwError $ HTTPError { status: status404, details: Nothing }
-    when (context.method /= Method.fromString (reflectSymbol methodP))
+    when (context.method /= Method.fromString (reflectSymbol method))
       $ throwError $ HTTPError { status: status405, details: Nothing }
-    body <- Record.get methodP handlers
+    body <- Record.get method handlers
     content <- Content.negotiate context $ allMimeRender (Proxy :: Proxy contentTypes) body
     pure content
 

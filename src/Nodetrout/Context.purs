@@ -29,7 +29,7 @@ fromRequest req =
     url = requestURL req
     queryPosition = indexOf (Pattern "?") url
     path = filter (_ /= "") $ split (Pattern "/") $ fromMaybe url (flip take url <$> queryPosition)
-    query = fromMaybe [] $ un FormURLEncoded <$> (decode =<< (flip drop url <$> queryPosition))
+    query = fromMaybe [] $ un FormURLEncoded <$> (decode =<< ((flip drop url <<< (_ + 1)) <$> queryPosition))
     headers = requestHeaders req
   in
     { method, path, query, headers }
