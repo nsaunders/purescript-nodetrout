@@ -92,20 +92,20 @@ instance routerQueryParam ::
   , Router layout handlers (ExceptT HTTPError m next)
   , IsSymbol label
   , FromPathPiece value
-  ) => Router (QueryParam label value :> layout) (value -> handlers) (ExceptT HTTPError m next) where
+  ) => Router (QueryParam label value :> layout) (Maybe value -> handlers) (ExceptT HTTPError m next) where
   route _ handlers context =
     let
       label = reflectSymbol (SProxy :: SProxy label)
     in
       case (join $ snd <$> find ((_ == label) <<< fst) context.query) of
+        Just param ->
+          case fromPathPiece param of
+            Right value ->
+              route (Proxy :: Proxy layout) (handlers $ Just value) context
+            Left value ->
+              throwError $ HTTPError { status: status400, details: Just $ "Invalid value for query parameter " <> label }
         Nothing ->
-          throwError $ HTTPError { status: status400, details: Just $ "Missing query parameter " <> label }
-        Just value ->
-          case fromPathPiece value of
-            Left error ->
-              throwError $ HTTPError { status: status400, details: Just error }
-            Right v ->
-              route (Proxy :: Proxy layout) (handlers v) context
+          route (Proxy :: Proxy layout) (handlers Nothing) context
 
 instance routerMethod ::
   ( Monad m

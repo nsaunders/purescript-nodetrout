@@ -45,8 +45,7 @@ instance encodeJsonGreeting :: EncodeJson Greeting where
 instance encodeHTMLGreeting :: EncodeHTML Greeting where
   encodeHTML = show >>> text >>> span
 
-type Site = "greetingSearch" := "greetings" :/ QueryParam "filter" String :> Resource (Get (Array Greeting) JSON)
-       :<|> "greetings" := Lit "greetings" :> Resource (Get (Array Greeting) JSON)
+type Site = "greetings" := Lit "greetings" :> QueryParam "filter" String :> Resource (Get (Array Greeting) JSON)
        :<|> "greeting" := "greetings" :/ Capture "id" Int :> Resource (Get Greeting (JSON :<|> HTML))
 
 site :: Proxy Site
@@ -62,8 +61,7 @@ resources
   :: forall m
    . Monad m
   => { greeting :: Int -> { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) Greeting }
-     , greetings :: { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) (Array Greeting) }
-     , greetingSearch :: String -> { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) (Array Greeting) }
+     , greetings :: Maybe String -> { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) (Array Greeting) }
      }
 resources =
   { greeting: \id ->
@@ -75,8 +73,11 @@ resources =
           Nothing ->
             throwError $ HTTPError { status: status404, details: Just $ "No greeting matches id " <> show id <> "." }
     }
-  , greetings: { "GET": asks toArray }
-  , greetingSearch: \message -> { "GET": asks $ filter ((String.contains $ Pattern message) <<< greetingMessage) }
+  , greetings: \messageFilter ->
+      { "GET": asks $ case messageFilter of
+          Just message -> filter ((String.contains $ Pattern message) <<< greetingMessage)
+          Nothing -> toArray
+      }
   }
 
 main :: Effect Unit
