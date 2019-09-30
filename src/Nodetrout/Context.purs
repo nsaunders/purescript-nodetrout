@@ -1,14 +1,14 @@
 module Nodetrout.Context where
   
 import Prelude
-import Data.Array (filter, head, tail)
+import Data.Array (filter)
 import Data.Either (Either)
 import Data.FormURLEncoded (FormURLEncoded(..), decode)
 import Data.HTTP.Method (Method, CustomMethod)
 import Data.HTTP.Method (fromString) as Method
 import Data.Maybe (Maybe, fromMaybe)
 import Data.Newtype (un)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple)
 import Data.String.Common (split)
 import Data.String.CodeUnits (drop, indexOf, take)
 import Data.String.Pattern (Pattern(..))
@@ -33,6 +33,3 @@ fromRequest req =
     headers = requestHeaders req
   in
     { method, path, query, headers }
-
-shiftPath :: Context -> Tuple (Maybe String) Context
-shiftPath context@{ path } = Tuple (head path) $ context { path = fromMaybe [] $ tail path }
