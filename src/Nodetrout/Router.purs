@@ -3,7 +3,7 @@ module Nodetrout.Router where
 import Prelude
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Trans.Class (lift)
-import Data.Array (null, uncons)
+import Data.Array (catMaybes, filter, null, uncons)
 import Data.Either (Either(..))
 import Data.Foldable (find)
 import Data.HTTP.Method (fromString) as Method
@@ -21,7 +21,7 @@ import Prim.Row (class Cons, class Lacks) as Row
 import Record (delete, get) as Record
 import Type.Data.Symbol (class IsSymbol)
 import Type.Proxy (Proxy(..))
-import Type.Trout (type (:<|>), type (:>), type (:=), Capture, CaptureAll, Lit, Resource, QueryParam)
+import Type.Trout (type (:<|>), type (:>), type (:=), Capture, CaptureAll, Lit, QueryParam, QueryParams, Resource)
 import Type.Trout (Method) as Trout
 import Type.Trout.ContentType (class AllMimeRender, allMimeRender)
 import Type.Trout.PathPiece (class FromPathPiece, fromPathPiece)
@@ -115,10 +115,26 @@ instance routerQueryParam ::
           case fromPathPiece param of
             Right value ->
               route (Proxy :: Proxy layout) (handlers $ Just value) context
-            Left value ->
+            Left _ ->
               throwError $ HTTPError { status: status400, details: Just $ "Invalid value for query parameter " <> label }
         Nothing ->
           route (Proxy :: Proxy layout) (handlers Nothing) context
+
+instance routerQueryParams ::
+  ( Monad m
+  , Router layout handlers (ExceptT HTTPError m next)
+  , IsSymbol label
+  , FromPathPiece value
+  ) => Router (QueryParams label value :> layout) (Array value -> handlers) (ExceptT HTTPError m next) where
+  route _ handlers context =
+    let
+      label = reflectSymbol (SProxy :: SProxy label)
+    in
+      case (traverse fromPathPiece $ catMaybes $ map snd $ filter ((_ == label) <<< fst) context.query) of
+        Right values ->
+          route (Proxy :: Proxy layout) (handlers values) context
+        Left _ ->
+          throwError $ HTTPError { status: status400, details: Just $ "Invalid value for query parameter " <> label }
 
 instance routerMethod ::
   ( Monad m
