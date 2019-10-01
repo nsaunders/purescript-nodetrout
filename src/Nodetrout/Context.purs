@@ -13,13 +13,15 @@ import Data.String.Common (split)
 import Data.String.CodeUnits (drop, indexOf, take)
 import Data.String.Pattern (Pattern(..))
 import Foreign.Object (Object)
-import Node.HTTP (Request, requestHeaders, requestMethod, requestURL)
+import Node.HTTP (Request, requestAsStream, requestHeaders, requestMethod, requestURL)
+import Node.Stream (Readable)
 
 type Context =
   { method :: Either Method CustomMethod
   , path :: Array String
   , query :: Array (Tuple String (Maybe String))
   , headers :: Object String
+  , body :: Readable ()
   }
 
 fromRequest :: Request -> Context
@@ -31,5 +33,6 @@ fromRequest req =
     path = filter (_ /= "") $ split (Pattern "/") $ fromMaybe url (flip take url <$> queryPosition)
     query = fromMaybe [] $ un FormURLEncoded <$> (decode =<< ((flip drop url <<< (_ + 1)) <$> queryPosition))
     headers = requestHeaders req
+    body = requestAsStream req
   in
-    { method, path, query, headers }
+    { method, path, query, headers, body }

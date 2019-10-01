@@ -9,7 +9,17 @@ let overrides = {=}
 let additions = {=}
 
 let additions =
-      { http =
+      { trout =
+          mkPackage
+          [ "argonaut"
+          , "media-types"
+          , "prelude"
+          , "smolder"
+          , "uri"
+          ]
+          "https://github.com/purescript-hyper/purescript-trout.git"
+          "929be9bfb9122fcd0ace6f63f6412a6b13d328b8"
+      , http =
           mkPackage
           [ "maybe" ]
           "https://github.com/joneshf/purescript-http.git"

@@ -3,7 +3,7 @@ module Nodetrout.Router where
 import Prelude
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Trans.Class (lift)
-import Data.Array (catMaybes, filter, null, uncons)
+import Data.Array (catMaybes, cons, filter, null, uncons)
 import Data.Either (Either(..))
 import Data.Foldable (find)
 import Data.HTTP.Method (fromString) as Method
@@ -12,7 +12,13 @@ import Data.MediaType (MediaType)
 import Data.Symbol (SProxy(..), reflectSymbol)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple, fst, snd)
+import Effect.Aff (makeAff, nonCanceler)
+import Effect.Aff.Class (class MonadAff, liftAff)
+import Effect.Ref (modify_, new, read) as Ref
 import Network.HTTP (status400, status404, status405)
+import Node.Buffer (concat, toString) as Buffer
+import Node.Encoding (Encoding(UTF8))
+import Node.Stream (onData, onEnd) as Stream
 import Nodetrout.Content (negotiate) as Content
 import Nodetrout.Context (Context)
 import Nodetrout.Error (select) as Error
@@ -21,9 +27,9 @@ import Prim.Row (class Cons, class Lacks) as Row
 import Record (delete, get) as Record
 import Type.Data.Symbol (class IsSymbol)
 import Type.Proxy (Proxy(..))
-import Type.Trout (type (:<|>), type (:>), type (:=), Capture, CaptureAll, Lit, QueryParam, QueryParams, Resource)
+import Type.Trout (type (:<|>), type (:>), type (:=), Capture, CaptureAll, Lit, QueryParam, QueryParams, ReqBody, Resource)
 import Type.Trout (Method) as Trout
-import Type.Trout.ContentType (class AllMimeRender, allMimeRender)
+import Type.Trout.ContentType (class AllMimeRender, class MimeParse, allMimeRender, mimeParse)
 import Type.Trout.PathPiece (class FromPathPiece, fromPathPiece)
 
 class Router layout handlers result | layout -> handlers, layout -> result where
@@ -135,6 +141,33 @@ instance routerQueryParams ::
           route (Proxy :: Proxy layout) (handlers values) context
         Left _ ->
           throwError $ HTTPError { status: status400, details: Just $ "Invalid value for query parameter " <> label }
+
+instance routerReqBody ::
+  ( Monad m
+  , MonadAff m
+  , Router layout handlers (ExceptT HTTPError m next)
+  , MimeParse String contentType parsed
+  ) => Router (ReqBody parsed contentType :> layout) (parsed -> handlers) (ExceptT HTTPError m next) where
+  route _ handlers context = do
+    maybeBody <- liftAff $ makeAff \done -> do
+                   chunks <- Ref.new []
+                   Stream.onData context.body \chunk -> Ref.modify_ (cons chunk) chunks
+                   Stream.onEnd context.body $ Ref.read chunks >>=
+                     case _ of
+                       [] ->
+                         done $ Right Nothing
+                       chx ->
+                         Buffer.concat chx >>= Buffer.toString UTF8 >>= Just >>> Right >>> done
+                   pure nonCanceler
+    case maybeBody of
+      Just body ->
+        case mimeParse (Proxy :: Proxy contentType) body of
+          Right parsed ->
+            route (Proxy :: Proxy layout) (handlers parsed) context
+          Left _ ->
+            throwError $ HTTPError { status: status400, details: Just "Could not parse the request body." }
+      Nothing ->
+        throwError $ HTTPError { status: status400, details: Just "A request body is required, but none was present." }
 
 instance routerMethod ::
   ( Monad m
