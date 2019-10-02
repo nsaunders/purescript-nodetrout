@@ -2,36 +2,37 @@ module Example.ReqBody where
 
 import Prelude
 import Control.Monad.Except (ExceptT)
+import Data.Argonaut (class DecodeJson, class EncodeJson, decodeJson, encodeJson)
+import Data.Array (reverse)
 import Data.Maybe (Maybe(..))
-import Data.String (joinWith) as String
 import Effect (Effect)
 import Effect.Console (log)
 import Node.HTTP (createServer, listen)
 import Nodetrout.Error (HTTPError)
 import Nodetrout.Server (serve)
-import Text.Smolder.HTML (span)
-import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
 import Type.Trout (type (:=), type (:>), ReqBody, Resource)
-import Type.Trout.ContentType.HTML (class EncodeHTML, HTML)
 import Type.Trout.ContentType.JSON (JSON)
 import Type.Trout.Method (Post)
 
-newtype Dimensions = Dimensions (Array Int)
+newtype List = List (Array String)
 
-undimensions :: Dimensions -> Array Int
-undimensions (Dimensions d) = d
+reverseList :: List -> List
+reverseList (List items) = List $ reverse items
 
-instance encodeHTMLPath :: EncodeHTML Dimensions where
-  encodeHTML = span <<< text <<< String.joinWith " x " <<< map show <<< undimensions
+instance decodeJsonList :: DecodeJson List where
+  decodeJson = map List <<< decodeJson
 
-type Site = "dimensions" := ReqBody (Array Int) JSON :> Resource (Post Dimensions HTML)
+instance encodeJsonList :: EncodeJson List where
+  encodeJson (List items) = encodeJson items
+
+type Site = "reversed" := ReqBody List JSON :> Resource (Post List JSON)
 
 site :: Proxy Site
 site = Proxy
 
-resources :: forall m. Monad m => { dimensions :: Array Int -> { "POST" :: ExceptT HTTPError m Dimensions } }
-resources = { dimensions: \d -> { "POST": pure $ Dimensions d } }
+resources :: forall m. Monad m => { reversed :: List -> { "POST" :: ExceptT HTTPError m List } }
+resources = { reversed: \list -> { "POST": pure $ reverseList list } }
 
 main :: Effect Unit
 main = do
