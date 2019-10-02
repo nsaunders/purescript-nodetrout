@@ -2,7 +2,6 @@
     "nodetrout"
 , dependencies =
     [ "argonaut"
-    , "argonaut-generic"
     , "console"
     , "effect"
     , "form-urlencoded"

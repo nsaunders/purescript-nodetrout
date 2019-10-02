@@ -1,14 +1,11 @@
-module Example.Greeting where
+module Example.API where
 
 import Prelude
 import Control.Monad.Except (ExceptT, throwError)
 import Control.Monad.Reader (ReaderT, asks, runReaderT)
-import Data.Argonaut (class EncodeJson)
-import Data.Argonaut.Encode.Generic.Rep (genericEncodeJson)
+import Data.Argonaut (class EncodeJson, encodeJson)
 import Data.Array.NonEmpty (NonEmptyArray, cons', filter, toArray)
 import Data.Foldable (find)
-import Data.Generic.Rep (class Generic)
-import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (contains) as String
 import Data.String.Pattern (Pattern(..))
@@ -34,13 +31,11 @@ greetingId (Greeting { id }) = id
 greetingMessage :: Greeting -> String
 greetingMessage (Greeting { message }) = message
 
-derive instance genericGreeting :: Generic Greeting _
-
 instance showGreeting :: Show Greeting where
-  show = genericShow
+  show (Greeting g) = show g
 
 instance encodeJsonGreeting :: EncodeJson Greeting where
-  encodeJson = genericEncodeJson
+  encodeJson (Greeting g) = encodeJson g
 
 instance encodeHTMLGreeting :: EncodeHTML Greeting where
   encodeHTML = show >>> text >>> span
@@ -51,17 +46,13 @@ type Site = "greetings" := Lit "greetings" :> QueryParam "filter" String :> Reso
 site :: Proxy Site
 site = Proxy
 
-greetings :: NonEmptyArray Greeting
-greetings = map Greeting $ cons' { id: 1, message: "Hi" }
-                               [ { id: 2, message: "Hello" }
-                               , { id: 3, message: "Hey" }
-                               ]
+type Handler m = ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m)
 
 resources
   :: forall m
    . Monad m
-  => { greeting :: Int -> { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) Greeting }
-     , greetings :: Maybe String -> { "GET" :: ExceptT HTTPError (ReaderT (NonEmptyArray Greeting) m) (Array Greeting) }
+  => { greeting :: Int -> { "GET" :: Handler m Greeting }
+     , greetings :: Maybe String -> { "GET" :: Handler m (Array Greeting) }
      }
 resources =
   { greeting: \id ->
@@ -82,5 +73,9 @@ resources =
 
 main :: Effect Unit
 main = do
+  let greetings = map Greeting $ cons' { id: 1, message: "Hi" }
+                                   [ { id: 2, message: "Hello" }
+                                   , { id: 3, message: "Hey" }
+                                   ]
   server <- createServer $ serve site resources (flip runReaderT greetings)
   listen server { hostname: "0.0.0.0", port: 3000, backlog: Nothing } $ log "Listening on port 3000..."
