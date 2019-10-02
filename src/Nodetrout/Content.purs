@@ -3,15 +3,13 @@ module Nodetrout.Content where
 import Prelude
 import Control.Alternative ((<|>))
 import Control.Monad.Except (ExceptT, throwError)
-import Data.Array (elem, elemIndex)
+import Data.Array (catMaybes, elem, elemIndex, length)
 import Data.List.NonEmpty (NonEmptyList, find, head, reverse, sortBy)
-import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
 import Data.MediaType.Common (applicationJSON, textHTML)
 import Data.String (split, trim)
 import Data.String.Pattern (Pattern(..))
-import Data.Traversable (traverse)
 import Data.Tuple (Tuple, fst)
 import Foreign.Object (lookup)
 import Network.HTTP (status406)
@@ -51,23 +49,15 @@ getAcceptable { headers } =
     Just header ->
       let
         values = trim <$> split (Pattern ",") header
-        required = not $ "*/*" `elem` values
-        eitherMimeTypes = values # traverse \v ->
-          case v of
-            "application/json" -> Right applicationJSON
-            "text/html" -> Right textHTML
-            unsupported -> Left unsupported
+        acceptable = if not $ "*/*" `elem` values then Required else Preferred
+        mimeTypes = catMaybes $ values <#> case _ of
+          "application/json" -> Just applicationJSON
+          "text/html" -> Just textHTML
+          _ -> Nothing
       in
-        case eitherMimeTypes of
-          Left unsupported ->
-            throwError $ HTTPError { status: status406, details: Just $ "Unsupported media type " <> unsupported }
-          Right mimeTypes ->
-            pure $
-              if required then
-                Required mimeTypes
-              else
-                Preferred mimeTypes
-
+        if (length mimeTypes == 0)
+          then throwError $ HTTPError { status: status406, details: Just "The requested media types are unsupported." }
+          else pure (acceptable mimeTypes)
 
 selectContent
   :: forall content
