@@ -3,34 +3,32 @@ module Example.QueryParams where
 import Prelude
 import Control.Monad.Except (ExceptT)
 import Data.Maybe (Maybe(..))
-import Data.String (joinWith) as String
+import Data.Traversable (traverse_)
 import Effect (Effect)
 import Effect.Console (log)
 import Node.HTTP (createServer, listen)
 import Nodetrout.Error (HTTPError)
 import Nodetrout.Server (serve)
-import Text.Smolder.HTML (span)
-import Text.Smolder.Markup (text)
+import Text.Smolder.HTML (html, li, ul)
+import Text.Smolder.HTML.Attributes (lang)
+import Text.Smolder.Markup ((!), text)
 import Type.Proxy (Proxy(..))
 import Type.Trout (type (:=), type (:>), QueryParams, Resource)
 import Type.Trout.ContentType.HTML (class EncodeHTML, HTML)
 import Type.Trout.Method (Get)
 
-newtype Dimensions = Dimensions (Array Int)
+newtype List = List (Array String)
 
-undimensions :: Dimensions -> Array Int
-undimensions (Dimensions d) = d
+instance encodeHTMLList :: EncodeHTML List where
+  encodeHTML (List items) = html ! lang "en" $ ul $ traverse_ (li <<< text) items
 
-instance encodeHTMLPath :: EncodeHTML Dimensions where
-  encodeHTML = span <<< text <<< String.joinWith " x " <<< map show <<< undimensions
-
-type Site = "dimensions" := QueryParams "d" Int :> Resource (Get Dimensions HTML)
+type Site = "list" := QueryParams "item" String :> Resource (Get List HTML)
 
 site :: Proxy Site
 site = Proxy
 
-resources :: forall m. Monad m => { dimensions :: Array Int -> { "GET" :: ExceptT HTTPError m Dimensions } }
-resources = { dimensions: \d -> { "GET": pure $ Dimensions d } }
+resources :: forall m. Monad m => { list :: Array String -> { "GET" :: ExceptT HTTPError m List } }
+resources = { list: \items -> { "GET": pure $ List items } }
 
 main :: Effect Unit
 main = do
