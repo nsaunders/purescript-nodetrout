@@ -13,8 +13,8 @@ import Data.String.Pattern (Pattern(..))
 import Data.Tuple (Tuple, fst)
 import Foreign.Object (lookup)
 import Network.HTTP (status406)
-import Nodetrout.Context (Context)
 import Nodetrout.Error (HTTPError(..))
+import Nodetrout.Request (Request, headers)
 
 data Acceptable
   = Required (Array MediaType)
@@ -24,11 +24,11 @@ data Acceptable
 negotiate
   :: forall m content
    . Monad m
-  => Context
+  => Request
   -> NonEmptyList (Tuple MediaType content)
   -> ExceptT HTTPError m (Tuple MediaType content)
-negotiate context available = do
-  acceptable <- getAcceptable context
+negotiate request available = do
+  acceptable <- getAcceptable request
   case (selectContent acceptable available) of
     Nothing ->
       throwError $ HTTPError { status: status406, details: Just "Content not available in requested format." }
@@ -38,10 +38,10 @@ negotiate context available = do
 getAcceptable
   :: forall m
    . Monad m
-  => Context
+  => Request
   -> ExceptT HTTPError m Acceptable
-getAcceptable { headers } =
-  case (lookup "Accept" headers <|> lookup "accept" headers) of
+getAcceptable request =
+  case (lookup "Accept" $ headers request) <|> (lookup "accept" $ headers request) of
     Nothing ->
       pure Anything
     Just "*/*" ->

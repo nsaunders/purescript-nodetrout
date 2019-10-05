@@ -15,8 +15,8 @@ import Network.HTTP (status2Number)
 import Node.Encoding (Encoding(UTF8))
 import Node.HTTP (Request, Response, responseAsStream, setHeader, setStatusCode)
 import Node.Stream (Writable, end, writeString) as Stream
-import Nodetrout.Context (fromRequest) as Context
 import Nodetrout.Error (HTTPError(..))
+import Nodetrout.Request (fromNodeRequest) as Request
 import Nodetrout.Router (class Router, route)
 import Type.Proxy (Proxy)
 
@@ -34,7 +34,7 @@ serve
   -> Effect Unit
 serve layout handlers runM req res = launchAff_ $ runM do
   let rs = responseAsStream res
-  result <- runExceptT $ route layout handlers (Context.fromRequest req)
+  result <- runExceptT $ route layout handlers (Request.fromNodeRequest req)
   liftEffect $ case result of
     Left (HTTPError { status, details }) -> do
       setStatusCode res $ status2Number status
