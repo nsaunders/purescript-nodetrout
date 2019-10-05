@@ -73,7 +73,7 @@ replacePath :: Array String -> Request -> Request
 replacePath p (Request r) = Request $ r { path = defer $ const p }
 
 unconsPath :: Request -> Tuple (Maybe String) Request
-unconsPath request = case (uncons $ path request) of
+unconsPath request = case uncons $ path request of
   Just { head, tail } ->
     Tuple (Just head) $ replacePath tail request
   Nothing ->
