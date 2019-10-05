@@ -11,10 +11,9 @@ import Data.MediaType.Common (applicationJSON, textHTML)
 import Data.String (split, trim)
 import Data.String.Pattern (Pattern(..))
 import Data.Tuple (Tuple, fst)
-import Foreign.Object (lookup)
 import Network.HTTP (status406)
 import Nodetrout.Error (HTTPError(..))
-import Nodetrout.Request (Request, headers)
+import Nodetrout.Request (Request, headerValue)
 
 data Acceptable
   = Required (Array MediaType)
@@ -40,8 +39,8 @@ getAcceptable
    . Monad m
   => Request
   -> ExceptT HTTPError m Acceptable
-getAcceptable request =
-  case (lookup "Accept" $ headers request) <|> (lookup "accept" $ headers request) of
+getAcceptable =
+  headerValue "accept" >>> case _ of
     Nothing ->
       pure Anything
     Just "*/*" ->

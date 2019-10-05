@@ -3,6 +3,7 @@ module Nodetrout.Request where
 import Prelude
 import Data.Array (cons, uncons)
 import Data.Either (Either(..))
+import Data.Foldable (find)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.FormURLEncoded (FormURLEncoded(..))
 import Data.FormURLEncoded (decode) as FUE
@@ -10,13 +11,13 @@ import Data.HTTP.Method (CustomMethod, Method)
 import Data.HTTP.Method (fromString) as Method
 import Data.Lazy (Lazy, defer, force)
 import Data.Newtype (class Newtype, un)
-import Data.String (split) as String
+import Data.String (toLower, split) as String
 import Data.String.CodeUnits (drop, dropWhile, takeWhile) as String
 import Data.String.Pattern (Pattern(..))
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), fst, snd)
 import Effect.Aff (Aff, makeAff, nonCanceler)
 import Effect.Ref (modify_, new, read) as Ref
-import Foreign.Object (Object)
+import Foreign.Object (Object, toArrayWithKey)
 import Node.Buffer (concat, toString) as Buffer
 import Node.Encoding (Encoding(UTF8))
 import Node.HTTP (Request) as NH
@@ -80,3 +81,7 @@ unconsPath request = case (uncons $ path request) of
 
 removePath :: Request -> Tuple (Array String) Request
 removePath request = Tuple (path request) $ replacePath [] request
+
+headerValue :: String -> Request -> Maybe String
+headerValue name =
+  map snd <<< find ((_ == String.toLower name) <<< String.toLower <<< fst) <<< toArrayWithKey Tuple <<< headers
