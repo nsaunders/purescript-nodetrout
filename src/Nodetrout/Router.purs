@@ -3,22 +3,29 @@ module Nodetrout.Router where
 import Prelude
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Trans.Class (lift)
-import Data.Array (catMaybes, filter, null)
+import Data.Array (null)
 import Data.Either (Either(..))
-import Data.Foldable (find)
 import Data.HTTP.Method (fromString) as Method
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
 import Data.Symbol (SProxy(..), reflectSymbol)
 import Data.Traversable (traverse)
-import Data.Tuple (Tuple(..), fst, snd)
+import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Network.HTTP (status400, status404, status405)
 import Nodetrout.Content (negotiate) as Content
 import Nodetrout.Error (select) as Error
 import Nodetrout.Error (HTTPError(..))
 import Nodetrout.Request (Request)
-import Nodetrout.Request (method, path, query, readToString, removePath, unconsPath) as Request
+import Nodetrout.Request
+  ( method
+  , path
+  , queryParamValue
+  , queryParamValues
+  , readToString
+  , removePath
+  , unconsPath
+  ) as Request
 import Prim.Row (class Cons, class Lacks) as Row
 import Record (delete, get) as Record
 import Type.Data.Symbol (class IsSymbol)
@@ -115,9 +122,9 @@ instance routerQueryParam ::
     let
       label = reflectSymbol (SProxy :: SProxy label)
     in
-      case join $ snd <$> (find ((_ == label) <<< fst) $ Request.query request) of
-        Just param ->
-          case fromPathPiece param of
+      case Request.queryParamValue label request of
+        Just paramValue ->
+          case fromPathPiece paramValue of
             Right value ->
               route (Proxy :: Proxy layout) (handlers $ Just value) request
             Left _ ->
@@ -135,7 +142,7 @@ instance routerQueryParams ::
     let
       label = reflectSymbol (SProxy :: SProxy label)
     in
-      case traverse fromPathPiece $ catMaybes $ map snd $ filter ((_ == label) <<< fst) $ Request.query request of
+      case traverse fromPathPiece $ Request.queryParamValues label request of
         Right values ->
           route (Proxy :: Proxy layout) (handlers values) request
         Left _ ->

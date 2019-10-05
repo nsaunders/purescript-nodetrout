@@ -1,7 +1,7 @@
 module Nodetrout.Request where
 
 import Prelude
-import Data.Array (cons, uncons)
+import Data.Array (catMaybes, cons, filter, head, uncons)
 import Data.Either (Either(..))
 import Data.Foldable (find)
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -85,3 +85,9 @@ removePath request = Tuple (path request) $ replacePath [] request
 headerValue :: String -> Request -> Maybe String
 headerValue name =
   map snd <<< find ((_ == String.toLower name) <<< String.toLower <<< fst) <<< toArrayWithKey Tuple <<< headers
+
+queryParamValues :: String -> Request -> Array String
+queryParamValues label = catMaybes <<< map snd <<< filter (eq label <<< fst) <<< query
+
+queryParamValue :: String -> Request -> Maybe String
+queryParamValue label = head <<< queryParamValues label
