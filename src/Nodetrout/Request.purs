@@ -1,29 +1,22 @@
 module Nodetrout.Request where
 
 import Prelude
-import Data.Array (catMaybes, cons, filter, head, uncons)
-import Data.Either (Either(..))
+import Data.Array (catMaybes, filter, head, uncons)
+import Data.Either (Either)
 import Data.Foldable (find)
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.FormURLEncoded (FormURLEncoded(..))
 import Data.FormURLEncoded (decode) as FUE
 import Data.HTTP.Method (CustomMethod, Method)
 import Data.HTTP.Method (fromString) as Method
-import Data.Lazy (Lazy, defer, force)
+import Data.Lazy (Lazy, force)
 import Data.Newtype (class Newtype, un)
 import Data.String (joinWith, split, toLower) as String
 import Data.String.CodeUnits (drop, dropWhile, takeWhile) as String
 import Data.String.Pattern (Pattern(..))
 import Data.Tuple (Tuple(..), fst, snd)
-import Effect.Aff (Aff, makeAff, nonCanceler)
-import Effect.Ref (modify_, new, read) as Ref
+import Effect.Aff (Aff)
 import Foreign.Object (Object, toArrayWithKey)
-import Foreign.Object (empty) as FO
-import Node.Buffer (concat, toString) as Buffer
-import Node.Encoding (Encoding(UTF8))
-import Node.HTTP (Request) as NH
-import Node.HTTP (requestHeaders, requestMethod, requestAsStream, requestURL)
-import Node.Stream (onData, onEnd) as Stream
 
 newtype Request = Request
   { method :: String
@@ -33,24 +26,6 @@ newtype Request = Request
   }
 
 derive instance newtypeRequest :: Newtype Request _
-
-fromNodeRequest :: NH.Request -> Request
-fromNodeRequest req = Request
-  { method: requestMethod req
-  , url: requestURL req
-  , headers: requestHeaders req
-  , readString: defer \_ ->
-      makeAff \done -> do
-        chunks <- Ref.new []
-        Stream.onData (requestAsStream req) \chunk -> Ref.modify_ (cons chunk) chunks
-        Stream.onEnd (requestAsStream req) $ Ref.read chunks >>=
-          case _ of
-            [] ->
-              done $ Right Nothing
-            chx ->
-              Buffer.concat chx >>= Buffer.toString UTF8 >>= Just >>> Right >>> done
-        pure nonCanceler
-  }
 
 method :: Request -> Either Method CustomMethod
 method = Method.fromString <<< _.method <<< un Request
