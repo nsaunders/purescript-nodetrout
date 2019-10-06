@@ -22,7 +22,7 @@ import Nodetrout.Request
   , path
   , queryParamValue
   , queryParamValues
-  , readToString
+  , readString
   , removePath
   , unconsPath
   ) as Request
@@ -155,7 +155,7 @@ instance routerReqBody ::
   , MimeParse String contentType parsed
   ) => Router (ReqBody parsed contentType :> layout) (parsed -> handlers) (ExceptT HTTPError m next) where
   route _ handlers request =
-    liftAff (Request.readToString request) >>= case _ of
+    liftAff (Request.readString request) >>= case _ of
       Just body ->
         case mimeParse (Proxy :: Proxy contentType) body of
           Right parsed ->
