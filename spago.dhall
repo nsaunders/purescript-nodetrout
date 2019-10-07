@@ -9,6 +9,7 @@
     , "http-methods"
     , "node-http"
     , "psci-support"
+    , "spec"
     , "stringutils"
     , "trout"
     ]
