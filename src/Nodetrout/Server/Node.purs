@@ -33,8 +33,8 @@ import Nodetrout.Request (Request(..))
 import Nodetrout.Router (class Router, route)
 import Type.Proxy (Proxy)
 
-mkRequest :: NH.Request -> Request
-mkRequest req = Request
+convertRequest :: NH.Request -> Request
+convertRequest req = Request
   { method: requestMethod req
   , url: requestURL req
   , headers: requestHeaders req
@@ -65,7 +65,7 @@ serve
   -> Effect Unit
 serve layout handlers runM req res = launchAff_ $ runM do
   let rs = responseAsStream res
-  result <- runExceptT $ route layout handlers (mkRequest req)
+  result <- runExceptT $ route layout handlers (convertRequest req)
   liftEffect $ case result of
     Left (HTTPError { status, details }) -> do
       setStatusCode res $ status2Number status
