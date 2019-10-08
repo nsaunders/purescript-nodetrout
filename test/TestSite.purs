@@ -87,6 +87,9 @@ messageMatchesId expected (Message { id }) = id == expected
 messageUnread :: Message -> Boolean
 messageUnread (Message { unread }) = unread
 
+unreadMessages :: Array Message
+unreadMessages = filter messageUnread messages
+
 resources
   :: forall m
    . Monad m
