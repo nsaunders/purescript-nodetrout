@@ -1,4 +1,4 @@
-module TestSite where
+module Test.Site where
 
 import Prelude
 import Control.Monad.Except (ExceptT, throwError)
@@ -6,7 +6,7 @@ import Data.Argonaut (class DecodeJson, class EncodeJson, jsonEmptyObject)
 import Data.Array (filter)
 import Data.Either (Either(Left))
 import Data.Foldable (find, foldr)
-import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un)
 import Data.String (contains, toLower) as String
 import Data.String.Pattern (Pattern(..))
@@ -81,14 +81,11 @@ messages = Message <$> [ { id: 1, content: "Hello", unread: true }
 messageHasContent :: String -> Message -> Boolean
 messageHasContent c (Message { content }) = String.contains (Pattern $ String.toLower c) (String.toLower content)
 
-messageMatchesId :: Int -> Message -> Boolean
-messageMatchesId expected (Message { id }) = id == expected
+messageHasId :: Int -> Message -> Boolean
+messageHasId expected (Message { id }) = id == expected
 
-messageUnread :: Message -> Boolean
-messageUnread (Message { unread }) = unread
-
-unreadMessages :: Array Message
-unreadMessages = filter messageUnread messages
+messageIsUnread :: Message -> Boolean
+messageIsUnread (Message { unread }) = unread
 
 resources
   :: forall m
@@ -101,16 +98,28 @@ resources
      }
 resources =
   { default: { "GET": pure Default }
-  , messages: \c -> map (un PathBoolean) >>> \u ->
-      { "GET": pure $ filter (foldr (||) (eq (fromMaybe false u) <<< messageUnread) (messageHasContent <$> c)) messages }
+  , messages: \content -> map (un PathBoolean) >>> \unread ->
+      { "GET":
+          messages
+            # filter ( case unread of
+                         Just true -> messageIsUnread
+                         Just false -> not <<< messageIsUnread
+                         Nothing -> const true
+                     )
+            # filter ( case content of
+                         [] -> const true
+                         cs -> foldr (||) (const false) (messageHasContent <$> cs)
+                     )
+            # pure
+      }
   , messageById: \id ->
       { "GET":
-          case find (messageMatchesId id) messages of
+          case find (messageHasId id) messages of
             Just message ->
               pure message
             Nothing ->
               throwError $ HTTPError { status: status404, details: Just $ "No message has ID " <> show id <> "." }
       }
-  , messagesById: \ids -> { "GET": pure $ filter (foldr (||) (const false) (messageMatchesId <$> ids)) messages }
+  , messagesById: \ids -> { "GET": pure $ filter (foldr (||) (const false) (messageHasId <$> ids)) messages }
   , newMessage: \message -> { "POST": pure message }
   }
