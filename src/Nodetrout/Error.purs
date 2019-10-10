@@ -1,6 +1,7 @@
 module Nodetrout.Error where
   
 import Prelude
+import Data.Foldable (elem)
 import Data.Lens (Lens', (^.), lens)
 import Data.Maybe (Maybe(..))
 
@@ -10,25 +11,25 @@ newtype HTTPError = HTTPError
   , details :: Maybe String
   }
 
-_statusCode :: Lens' HTTPError Int
-_statusCode = lens
+_errorStatusCode :: Lens' HTTPError Int
+_errorStatusCode = lens
   (\(HTTPError { statusCode }) -> statusCode)
   (\(HTTPError e) statusCode -> HTTPError $ e { statusCode = statusCode })
 
-_overview :: Lens' HTTPError String
-_overview = lens
+_errorOverview :: Lens' HTTPError String
+_errorOverview = lens
   (\(HTTPError { overview }) -> overview)
   (\(HTTPError e) overview -> HTTPError $ e { overview = overview })
 
-_details :: Lens' HTTPError (Maybe String)
-_details = lens
+_errorDetails :: Lens' HTTPError (Maybe String)
+_errorDetails = lens
   (\(HTTPError { details }) -> details)
   (\(HTTPError e) details -> HTTPError $ e { details = details })
  
 select :: HTTPError -> HTTPError -> HTTPError
 select error1 error2
-  | (error1 ^. _statusCode == 404 || error1 ^. _statusCode == 405) && error2 ^. _statusCode == 404 = error1
-  | not (error1 ^. _statusCode == 404) && (error2 ^. _statusCode == 404 || error2 ^. _statusCode == 405) = error1
+  | (error1 ^. _errorStatusCode) `elem` [404, 405] && error2 ^. _errorStatusCode == 404 = error1
+  | error1 ^. _errorStatusCode /= 404 && (error2 ^. _errorStatusCode) `elem` [404, 405] = error1
   | otherwise = error2
 
 error300 :: HTTPError

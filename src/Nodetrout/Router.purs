@@ -15,7 +15,7 @@ import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Nodetrout.Content (negotiate) as Content
 import Nodetrout.Error (select) as Error
-import Nodetrout.Error (HTTPError, _details, error400, error404, error405)
+import Nodetrout.Error (HTTPError, _errorDetails, error400, error404, error405)
 import Nodetrout.Request (Request)
 import Nodetrout.Request
   ( method
@@ -128,7 +128,7 @@ instance routerQueryParam ::
             Right value ->
               route (Proxy :: Proxy layout) (handlers $ Just value) request
             Left _ ->
-              throwError $ error400 # _details .~ Just ("Invalid value for query parameter \"" <> label <> "\"")
+              throwError $ error400 # _errorDetails .~ Just ("Invalid value for query parameter " <> label)
         Nothing ->
           route (Proxy :: Proxy layout) (handlers Nothing) request
 
@@ -146,7 +146,7 @@ instance routerQueryParams ::
         Right values ->
           route (Proxy :: Proxy layout) (handlers values) request
         Left _ ->
-          throwError $ error400 # _details .~ Just ("Invalid value for query parameter \"" <> label <> "\"")
+          throwError $ error400 # _errorDetails .~ Just ("Invalid value for query parameter " <> label)
 
 instance routerReqBody ::
   ( Monad m
@@ -161,9 +161,9 @@ instance routerReqBody ::
           Right parsed ->
             route (Proxy :: Proxy layout) (handlers parsed) request
           Left _ ->
-            throwError $ error400 # _details .~ Just "The request body was not in the expected format."
+            throwError $ error400 # _errorDetails .~ Just "The request body was not in the expected format."
       Nothing ->
-        throwError $ error400 # _details .~ Just "A request body is required, but none was provided."
+        throwError $ error400 # _errorDetails .~ Just "A request body is required, but none was provided."
 
 instance routerMethod ::
   ( Monad m

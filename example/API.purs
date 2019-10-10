@@ -13,7 +13,7 @@ import Data.String.Pattern (Pattern(..))
 import Effect (Effect)
 import Effect.Console (log)
 import Node.HTTP (createServer, listen)
-import Nodetrout (HTTPError, _details, error404, serve)
+import Nodetrout (HTTPError, _errorDetails, error404, serve)
 import Text.Smolder.HTML (span)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
@@ -61,7 +61,7 @@ resources =
           Just greeting ->
             pure greeting
           Nothing ->
-            throwError $ error404 # _details .~ Just ("No greeting exists with ID " <> show id <> ".")
+            throwError $ error404 # _errorDetails .~ Just ("No greeting exists with ID " <> show id <> ".")
     }
   , greetings: \messageFilter ->
       { "GET": asks $ case messageFilter of

@@ -12,7 +12,7 @@ import Data.MediaType.Common (applicationJSON, textHTML)
 import Data.String (split, trim)
 import Data.String.Pattern (Pattern(..))
 import Data.Tuple (Tuple, fst)
-import Nodetrout.Error (HTTPError, _details, error406)
+import Nodetrout.Error (HTTPError, _errorDetails, error406)
 import Nodetrout.Request (Request, headerValue)
 
 data Acceptable
@@ -30,7 +30,7 @@ negotiate request available = do
   acceptable <- getAcceptable request
   case (selectContent acceptable available) of
     Nothing ->
-      throwError $ error406 # _details .~ Just "This content is not available in the requested format."
+      throwError $ error406 # _errorDetails .~ Just "This content is not available in the requested format."
     Just content ->
       pure content
 
@@ -55,7 +55,7 @@ getAcceptable =
           _ -> Nothing
       in
         if (length mimeTypes == 0)
-          then throwError $ error406 # _details .~ Just "The requested media types are unsupported."
+          then throwError $ error406 # _errorDetails .~ Just "The requested media types are unsupported."
           else pure (acceptable mimeTypes)
 
 selectContent

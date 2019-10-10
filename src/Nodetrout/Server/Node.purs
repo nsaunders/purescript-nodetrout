@@ -26,7 +26,7 @@ import Node.HTTP
   , setStatusCode
   )
 import Node.Stream (Writable, end, onData, onEnd, writeString) as Stream
-import Nodetrout.Error (HTTPError, _details, _statusCode, _overview)
+import Nodetrout.Error (HTTPError, _errorDetails, _errorOverview, _errorStatusCode)
 import Nodetrout.Request (Request(..))
 import Nodetrout.Router (class Router, route)
 import Type.Proxy (Proxy)
@@ -66,9 +66,9 @@ serve layout handlers runM req res = launchAff_ $ runM do
   result <- runExceptT $ route layout handlers (convertRequest req)
   liftEffect $ case result of
     Left error -> do
-      setStatusCode res $ error ^. _statusCode
+      setStatusCode res $ error ^. _errorStatusCode
       setHeader res "content-type" "text/plain"
-      let body = error ^. _overview <> fromMaybe "" ((\d -> ": " <> d) <$> error ^. _details)
+      let body = error ^. _errorOverview <> fromMaybe "" ((\d -> ": " <> d) <$> error ^. _errorDetails)
       _ <- Stream.writeString rs UTF8 body $ pure unit
       Stream.end rs $ pure unit
     Right (Tuple (MediaType contentType) content) -> do
