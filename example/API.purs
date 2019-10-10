@@ -73,8 +73,8 @@ resources =
 main :: Effect Unit
 main = do
   let greetings = map Greeting $ cons' { id: 1, message: "Hi" }
-                                   [ { id: 2, message: "Hello" }
-                                   , { id: 3, message: "Hey" }
-                                   ]
+                                     [ { id: 2, message: "Hello" }
+                                     , { id: 3, message: "Hey" }
+                                     ]
   server <- createServer $ serve site resources (flip runReaderT greetings)
   listen server { hostname: "0.0.0.0", port: 3000, backlog: Nothing } $ log "Listening on port 3000..."
