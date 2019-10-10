@@ -6,14 +6,14 @@ import Control.Monad.Reader (ReaderT, asks, runReaderT)
 import Data.Argonaut (class EncodeJson, encodeJson)
 import Data.Array.NonEmpty (NonEmptyArray, cons', filter, toArray)
 import Data.Foldable (find)
+import Data.Lens ((.~))
 import Data.Maybe (Maybe(..))
 import Data.String.CodeUnits (contains) as String
 import Data.String.Pattern (Pattern(..))
 import Effect (Effect)
 import Effect.Console (log)
-import Network.HTTP (status404)
 import Node.HTTP (createServer, listen)
-import Nodetrout (HTTPError(..), serve)
+import Nodetrout (HTTPError, _details, error404, serve)
 import Text.Smolder.HTML (span)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
@@ -61,7 +61,7 @@ resources =
           Just greeting ->
             pure greeting
           Nothing ->
-            throwError $ HTTPError { status: status404, details: Just $ "No greeting matches id " <> show id <> "." }
+            throwError $ error404 # _details .~ Just ("No greeting exists with ID " <> show id <> ".")
     }
   , greetings: \messageFilter ->
       { "GET": asks $ case messageFilter of

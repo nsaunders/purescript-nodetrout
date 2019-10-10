@@ -4,6 +4,7 @@ import Prelude
 import Control.Alternative ((<|>))
 import Control.Monad.Except (ExceptT, throwError)
 import Data.Array (catMaybes, elem, elemIndex, length)
+import Data.Lens ((.~))
 import Data.List.NonEmpty (NonEmptyList, find, head, reverse, sortBy)
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
@@ -11,8 +12,7 @@ import Data.MediaType.Common (applicationJSON, textHTML)
 import Data.String (split, trim)
 import Data.String.Pattern (Pattern(..))
 import Data.Tuple (Tuple, fst)
-import Network.HTTP (status406)
-import Nodetrout.Error (HTTPError(..))
+import Nodetrout.Error (HTTPError, _details, error406)
 import Nodetrout.Request (Request, headerValue)
 
 data Acceptable
@@ -30,7 +30,7 @@ negotiate request available = do
   acceptable <- getAcceptable request
   case (selectContent acceptable available) of
     Nothing ->
-      throwError $ HTTPError { status: status406, details: Just "Content not available in requested format." }
+      throwError $ error406 # _details .~ Just "This content is not available in the requested format."
     Just content ->
       pure content
 
@@ -55,7 +55,7 @@ getAcceptable =
           _ -> Nothing
       in
         if (length mimeTypes == 0)
-          then throwError $ HTTPError { status: status406, details: Just "The requested media types are unsupported." }
+          then throwError $ error406 # _details .~ Just "The requested media types are unsupported."
           else pure (acceptable mimeTypes)
 
 selectContent

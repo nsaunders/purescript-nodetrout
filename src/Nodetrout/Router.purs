@@ -5,6 +5,7 @@ import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Trans.Class (lift)
 import Data.Array (null)
 import Data.Either (Either(..))
+import Data.Lens ((.~))
 import Data.HTTP.Method (fromString) as Method
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
@@ -12,10 +13,9 @@ import Data.Symbol (SProxy(..), reflectSymbol)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff, liftAff)
-import Network.HTTP (status400, status404, status405)
 import Nodetrout.Content (negotiate) as Content
 import Nodetrout.Error (select) as Error
-import Nodetrout.Error (HTTPError(..))
+import Nodetrout.Error (HTTPError, _details, error400, error404, error405)
 import Nodetrout.Request (Request)
 import Nodetrout.Request
   ( method
@@ -79,7 +79,7 @@ instance routerLit ::
       Tuple (Just head) scopedRequest | head == reflectSymbol (SProxy :: SProxy segment) ->
         route (Proxy :: Proxy layout) handlers scopedRequest
       _ ->
-        throwError $ HTTPError { status: status404, details: Nothing }
+        throwError error404
 
 instance routerCapture ::
   ( Monad m
@@ -92,10 +92,10 @@ instance routerCapture ::
         case fromPathPiece head of
           Right value ->
             route (Proxy :: Proxy layout) (handlers value) scopedRequest
-          Left error ->
-            throwError $ HTTPError { status: status400, details: Just error }
+          Left _ ->
+            throwError error404
       _ ->
-        throwError $ HTTPError { status: status404, details: Nothing }
+        throwError error404
 
 instance routerCaptureAll ::
   ( Monad m
@@ -110,7 +110,7 @@ instance routerCaptureAll ::
         Right value ->
           route (Proxy :: Proxy layout) (handlers value) scopedRequest
         Left _ ->
-          throwError $ HTTPError { status: status404, details: Nothing }
+          throwError error404
 
 instance routerQueryParam ::
   ( Monad m
@@ -128,7 +128,7 @@ instance routerQueryParam ::
             Right value ->
               route (Proxy :: Proxy layout) (handlers $ Just value) request
             Left _ ->
-              throwError $ HTTPError { status: status400, details: Just $ "Invalid value for query parameter " <> label }
+              throwError $ error400 # _details .~ Just ("Invalid value for query parameter \"" <> label <> "\"")
         Nothing ->
           route (Proxy :: Proxy layout) (handlers Nothing) request
 
@@ -146,7 +146,7 @@ instance routerQueryParams ::
         Right values ->
           route (Proxy :: Proxy layout) (handlers values) request
         Left _ ->
-          throwError $ HTTPError { status: status400, details: Just $ "Invalid value for query parameter " <> label }
+          throwError $ error400 # _details .~ Just ("Invalid value for query parameter \"" <> label <> "\"")
 
 instance routerReqBody ::
   ( Monad m
@@ -161,9 +161,9 @@ instance routerReqBody ::
           Right parsed ->
             route (Proxy :: Proxy layout) (handlers parsed) request
           Left _ ->
-            throwError $ HTTPError { status: status400, details: Just "Could not parse the request body." }
+            throwError $ error400 # _details .~ Just "The request body was not in the expected format."
       Nothing ->
-        throwError $ HTTPError { status: status400, details: Just "A request body is required, but none was present." }
+        throwError $ error400 # _details .~ Just "A request body is required, but none was provided."
 
 instance routerMethod ::
   ( Monad m
@@ -174,9 +174,9 @@ instance routerMethod ::
   route layout handlers request = do
     let method = SProxy :: SProxy method
     when (not $ null $ Request.path request)
-      $ throwError $ HTTPError { status: status404, details: Nothing }
+      $ throwError error404
     when (Request.method request /= Method.fromString (reflectSymbol method))
-      $ throwError $ HTTPError { status: status405, details: Nothing }
+      $ throwError error405
     body <- Record.get method handlers
     content <- Content.negotiate request $ allMimeRender (Proxy :: Proxy contentTypes) body
     pure content

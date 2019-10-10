@@ -5,12 +5,11 @@
     , "console"
     , "effect"
     , "form-urlencoded"
-    , "http"
     , "http-methods"
     , "node-http"
+    , "profunctor-lenses"
     , "psci-support"
     , "spec"
-    , "stringutils"
     , "trout"
     ]
 , packages =

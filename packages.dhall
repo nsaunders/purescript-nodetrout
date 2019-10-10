@@ -8,12 +8,6 @@ let overrides = {=}
 
 let additions = {=}
 
-let additions =
-      { http =
-          mkPackage
-          [ "maybe" ]
-          "https://github.com/joneshf/purescript-http.git"
-          "v4.0.0"
-      }
+let additions = {=}
 
 in  upstream // overrides // additions

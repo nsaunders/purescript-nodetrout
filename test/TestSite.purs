@@ -6,12 +6,12 @@ import Data.Argonaut (class DecodeJson, class EncodeJson, jsonEmptyObject)
 import Data.Array (filter)
 import Data.Either (Either(Left))
 import Data.Foldable (find, foldr)
+import Data.Lens ((.~))
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un)
 import Data.String (contains, toLower) as String
 import Data.String.Pattern (Pattern(..))
-import Network.HTTP (status404)
-import Nodetrout.Error (HTTPError(..))
+import Nodetrout.Error (HTTPError, _details, error404)
 import Text.Smolder.HTML (h1)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
@@ -118,7 +118,7 @@ resources =
             Just message ->
               pure message
             Nothing ->
-              throwError $ HTTPError { status: status404, details: Just $ "No message has ID " <> show id <> "." }
+              throwError $ error404 # _details .~ Just ("No message has ID " <> show id <> ".")
       }
   , messagesById: \ids -> { "GET": pure $ filter (foldr (||) (const false) (messageHasId <$> ids)) messages }
   , newMessage: \message -> { "POST": pure message }
