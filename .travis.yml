@@ -15,7 +15,6 @@ install:
   - tar -xvf $HOME/spago.tar.gz -C $HOME/
   - chmod a+x $HOME/purescript/purs
   - chmod a+x $HOME/spago
-  - npm install -g bower@^1.8.8 pulp@^13.0.0
   - spago install
 script:
   - spago build
