@@ -4,7 +4,13 @@ let mkPackage =
 let upstream =
       https://raw.githubusercontent.com/purescript/package-sets/psc-0.13.3-20191005/src/packages.dhall sha256:ba287d858ada09c4164792ad4e643013b742c208cbedf5de2e35ee27b64b6817
 
-let overrides = {=}
+let overrides =
+  { trout =
+        upstream.trout
+     // { repo = "https://github.com/nsaunders/purescript-trout.git"
+        , version = "4edde87293e3905817bfa184e1434be5d2989f39"
+        }
+  }
 
 let additions = {=}
 

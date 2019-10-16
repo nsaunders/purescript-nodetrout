@@ -22,6 +22,7 @@ import Type.Trout
   , type (:>)
   , Capture
   , CaptureAll
+  , Header
   , QueryParam
   , QueryParams
   , ReqBody
@@ -58,10 +59,15 @@ instance fromPathPiecePathBoolean :: FromPathPiece PathBoolean where
     "1" -> pure true
     unrecognized -> Left unrecognized
 
-
 derive instance newtypePathBoolean :: Newtype PathBoolean _
 
+data Admin = Admin String
+
+instance encodeHTMLAdmin :: EncodeHTML Admin where
+  encodeHTML (Admin username) = h1 $ text username
+
 type Site = "default" := Resource (Get Default (JSON :<|> HTML))
+       :<|> "admin" := "admin" :/ Header "Authorization" String :> Resource (Get Admin HTML)
        :<|> "api" := "api" :/ (
          "messages" := "messages" :/ (
                 "messages" := QueryParams "content" String :> QueryParam "unread" PathBoolean :> Resource (Get (Array Message) JSON)
@@ -95,6 +101,7 @@ resources
   :: forall m
    . Monad m
   => { default :: { "GET" :: Handler m Default }
+<<<<<<< HEAD
      , api ::
        { messages ::
          { messages :: Array String -> Maybe PathBoolean -> { "GET" :: Handler m (Array Message) }
@@ -103,6 +110,13 @@ resources
          , newMessage :: Message -> { "POST" :: Handler m Message }
          }
        }
+=======
+     , messages :: Array String -> Maybe PathBoolean -> { "GET" :: Handler m (Array Message) }
+     , messageById :: Int -> { "GET" :: Handler m Message }
+     , messagesById :: Array Int -> { "GET" :: Handler m (Array Message) }
+     , newMessage :: Message -> { "POST" :: Handler m Message }
+     , admin :: String -> { "GET" :: Handler m Admin }
+>>>>>>> Support for Header combinator.
      }
 resources =
   { default: { "GET": pure Default }
@@ -133,5 +147,19 @@ resources =
       , messagesById: \ids -> { "GET": pure $ filter (foldr (||) (const false) (messageHasId <$> ids)) messages }
       , newMessage: \message -> { "POST": pure message }
       }
+<<<<<<< HEAD
     }
+=======
+  , messageById: \id ->
+      { "GET":
+          case find (messageHasId id) messages of
+            Just message ->
+              pure message
+            Nothing ->
+              throwError $ error404 # _errorDetails .~ Just ("No message has ID " <> show id <> ".")
+      }
+  , messagesById: \ids -> { "GET": pure $ filter (foldr (||) (const false) (messageHasId <$> ids)) messages }
+  , newMessage: \message -> { "POST": pure message }
+  , admin: \username -> { "GET": pure (Admin username) }
+>>>>>>> Support for Header combinator.
   }
