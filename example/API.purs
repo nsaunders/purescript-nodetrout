@@ -76,5 +76,5 @@ main = do
                                      [ { id: 2, message: "Hello" }
                                      , { id: 3, message: "Hey" }
                                      ]
-  server <- createServer $ serve site resources (flip runReaderT greetings)
+  server <- createServer $ serve site resources (flip runReaderT greetings) (const $ pure unit)
   listen server { hostname: "0.0.0.0", port: 3000, backlog: Nothing } $ log "Listening on port 3000..."

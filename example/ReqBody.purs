@@ -35,5 +35,5 @@ resources = { reversed: \list -> { "POST": pure $ reverseList list } }
 
 main :: Effect Unit
 main = do
-  server <- createServer $ serve site resources identity
+  server <- createServer $ serve site resources identity (const $ pure unit)
   listen server { hostname: "0.0.0.0", port: 3000, backlog: Nothing } $ log "Listening on port 3000..."
