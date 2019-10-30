@@ -17,5 +17,5 @@ install:
   - chmod a+x $HOME/spago
   - spago install
 script:
-  - spago build
+  - spago build --path example/**/*.purs
   - spago test
