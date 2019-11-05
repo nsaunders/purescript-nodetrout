@@ -62,10 +62,14 @@ instance fromPathPiecePathBoolean :: FromPathPiece PathBoolean where
 derive instance newtypePathBoolean :: Newtype PathBoolean _
 
 type Site = "default" := Resource (Get Default (JSON :<|> HTML))
-       :<|> "messages" := "api" :/ "messages" :/ QueryParams "content" String :> QueryParam "unread" PathBoolean :> Resource (Get (Array Message) JSON)
-       :<|> "messageById" := "api" :/ "messages" :/ Capture "id" Int :> Resource (Get Message JSON)
-       :<|> "messagesById" := "api" :/ "messages" :/ CaptureAll "id" Int :> Resource (Get (Array Message) JSON)
-       :<|> "newMessage" := "api" :/ "messages" :/ ReqBody Message JSON :> Resource (Post Message JSON)
+       :<|> "api" := "api" :/ (
+         "messages" := "messages" :/ (
+                "messages" := QueryParams "content" String :> QueryParam "unread" PathBoolean :> Resource (Get (Array Message) JSON)
+           :<|> "messageById" := Capture "id" Int :> Resource (Get Message JSON)
+           :<|> "messagesById" := CaptureAll "id" Int :> Resource (Get (Array Message) JSON)
+           :<|> "newMessage" := ReqBody Message JSON :> Resource (Post Message JSON)
+         )
+       )
 
 site :: Proxy Site
 site = Proxy
@@ -91,35 +95,43 @@ resources
   :: forall m
    . Monad m
   => { default :: { "GET" :: Handler m Default }
-     , messages :: Array String -> Maybe PathBoolean -> { "GET" :: Handler m (Array Message) }
-     , messageById :: Int -> { "GET" :: Handler m Message }
-     , messagesById :: Array Int -> { "GET" :: Handler m (Array Message) }
-     , newMessage :: Message -> { "POST" :: Handler m Message }
+     , api ::
+       { messages ::
+         { messages :: Array String -> Maybe PathBoolean -> { "GET" :: Handler m (Array Message) }
+         , messageById :: Int -> { "GET" :: Handler m Message }
+         , messagesById :: Array Int -> { "GET" :: Handler m (Array Message) }
+         , newMessage :: Message -> { "POST" :: Handler m Message }
+         }
+       }
      }
 resources =
   { default: { "GET": pure Default }
-  , messages: \content -> map (un PathBoolean) >>> \unread ->
-      { "GET":
-          messages
-            # filter ( case unread of
-                         Just true -> messageIsUnread
-                         Just false -> not <<< messageIsUnread
-                         Nothing -> const true
-                     )
-            # filter ( case content of
-                         [] -> const true
-                         cs -> foldr (||) (const false) (messageHasContent <$> cs)
-                     )
-            # pure
+  , api:
+    { messages:
+      { messages: \content -> map (un PathBoolean) >>> \unread ->
+          { "GET":
+              messages
+                # filter ( case unread of
+                             Just true -> messageIsUnread
+                             Just false -> not <<< messageIsUnread
+                             Nothing -> const true
+                         )
+                # filter ( case content of
+                             [] -> const true
+                             cs -> foldr (||) (const false) (messageHasContent <$> cs)
+                         )
+                # pure
+          }
+      , messageById: \id ->
+          { "GET":
+              case find (messageHasId id) messages of
+                Just message ->
+                  pure message
+                Nothing ->
+                  throwError $ error404 # _errorDetails .~ Just ("No message has ID " <> show id <> ".")
+          }
+      , messagesById: \ids -> { "GET": pure $ filter (foldr (||) (const false) (messageHasId <$> ids)) messages }
+      , newMessage: \message -> { "POST": pure message }
       }
-  , messageById: \id ->
-      { "GET":
-          case find (messageHasId id) messages of
-            Just message ->
-              pure message
-            Nothing ->
-              throwError $ error404 # _errorDetails .~ Just ("No message has ID " <> show id <> ".")
-      }
-  , messagesById: \ids -> { "GET": pure $ filter (foldr (||) (const false) (messageHasId <$> ids)) messages }
-  , newMessage: \message -> { "POST": pure message }
+    }
   }

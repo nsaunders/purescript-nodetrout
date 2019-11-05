@@ -11,6 +11,9 @@ newtype HTTPError = HTTPError
   , details :: Maybe String
   }
 
+instance showHTTPError :: Show HTTPError where
+  show (HTTPError error) = "HTTPError (" <> show error <> ")"
+
 _errorStatusCode :: Lens' HTTPError Int
 _errorStatusCode = lens
   (\(HTTPError { statusCode }) -> statusCode)
