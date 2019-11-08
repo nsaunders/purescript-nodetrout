@@ -4,7 +4,6 @@ import Prelude
 import Control.Monad.Except (runExceptT)
 import Data.Array (cons)
 import Data.Either (Either(..))
-import Data.Lazy (defer)
 import Data.Lens ((^.))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.MediaType (MediaType(..))
@@ -37,17 +36,17 @@ convertRequest req = Request
   { method: requestMethod req
   , url: requestURL req
   , headers: requestHeaders req
-  , readString: defer \_ ->
-      makeAff \done -> do
-        chunks <- Ref.new []
-        Stream.onData (requestAsStream req) \chunk -> Ref.modify_ (cons chunk) chunks
-        Stream.onEnd (requestAsStream req) $ Ref.read chunks >>=
-          case _ of
-            [] ->
-              done $ Right Nothing
-            chx ->
-              Buffer.concat chx >>= Buffer.toString UTF8 >>= Just >>> Right >>> done
-        pure nonCanceler
+  , readString: makeAff \done -> do
+      liftEffect $ log "reading body"
+      chunks <- Ref.new []
+      Stream.onData (requestAsStream req) \chunk -> Ref.modify_ (cons chunk) chunks
+      Stream.onEnd (requestAsStream req) $ Ref.read chunks >>=
+        case _ of
+          [] ->
+            done $ Right Nothing
+          chx ->
+            Buffer.concat chx >>= Buffer.toString UTF8 >>= Just >>> Right >>> done
+      pure nonCanceler
   }
 
 serve

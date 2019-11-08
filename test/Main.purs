@@ -6,7 +6,6 @@ import Data.Argonaut (encodeJson, stringify)
 import Data.Array (filter)
 import Data.Either (Either(..))
 import Data.Foldable (find)
-import Data.Lazy (Lazy, defer)
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
 import Data.MediaType.Common (applicationJSON, textHTML)
@@ -29,7 +28,7 @@ type RequestSpec =
   { method :: String
   , url :: String
   , headers :: Object String
-  , readString :: Lazy (Aff (Maybe String))
+  , readString :: Aff (Maybe String)
   } 
 
 defaultRequest :: RequestSpec
@@ -37,7 +36,7 @@ defaultRequest =
   { method: "GET"
   , url: "/"
   , headers: FO.singleton "accept" "*/*"
-  , readString: defer $ const (pure Nothing)
+  , readString: pure Nothing
   }
 
 processRequest :: forall m. Monad m => MonadAff m => RequestSpec -> m (Either HTTPError (Tuple MediaType String))
@@ -83,7 +82,7 @@ main = launchAff_ $ runSpec [consoleReporter] do
       result <- processRequest $ defaultRequest
                   { method = "POST"
                   , url = "/api/messages"
-                  , readString = defer $ const (pure $ Just reqBody)
+                  , readString = pure $ Just reqBody
                   }
       case result of
         Left error ->

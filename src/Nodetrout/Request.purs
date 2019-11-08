@@ -22,7 +22,7 @@ newtype Request = Request
   { method :: String
   , url :: String
   , headers :: Object String
-  , readString :: Lazy (Aff (Maybe String))
+  , readString :: Aff (Maybe String)
   }
 
 derive instance newtypeRequest :: Newtype Request _
@@ -41,7 +41,7 @@ headers :: Request -> Object String
 headers = _.headers <<< un Request
 
 readString :: Request -> Aff (Maybe String)
-readString = force <<< _.readString <<< un Request
+readString = _.readString <<< un Request
 
 replacePath :: Array String -> Request -> Request
 replacePath p (Request r) =
