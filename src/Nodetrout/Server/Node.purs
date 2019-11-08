@@ -37,7 +37,6 @@ convertRequest req = Request
   , url: requestURL req
   , headers: requestHeaders req
   , readString: makeAff \done -> do
-      liftEffect $ log "reading body"
       chunks <- Ref.new []
       Stream.onData (requestAsStream req) \chunk -> Ref.modify_ (cons chunk) chunks
       Stream.onEnd (requestAsStream req) $ Ref.read chunks >>=
