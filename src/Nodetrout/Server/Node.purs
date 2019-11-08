@@ -1,7 +1,7 @@
 module Nodetrout.Server.Node where
 
 import Prelude
-import Control.Monad.Except (ExceptT, runExceptT)
+import Control.Monad.Except (runExceptT)
 import Data.Array (cons)
 import Data.Either (Either(..))
 import Data.Lazy (defer)
@@ -27,7 +27,7 @@ import Node.HTTP
   , setStatusCode
   )
 import Node.Stream (Writable, end, onData, onEnd, writeString) as Stream
-import Nodetrout.Error (HTTPError, _errorDetails, _errorOverview, _errorStatusCode)
+import Nodetrout.Error (_errorDetails, _errorOverview, _errorStatusCode)
 import Nodetrout.Request (Request(..))
 import Nodetrout.Router (class Router, route)
 import Type.Proxy (Proxy)
@@ -55,7 +55,7 @@ serve
    . Monad m
   => MonadEffect m
   => ResponseWritable content
-  => Router layout (Record handlers) (ExceptT HTTPError m (Tuple MediaType content))
+  => Router layout (Record handlers) m (Tuple MediaType content)
   => Proxy layout
   -> Record handlers
   -> (m ~> Aff)

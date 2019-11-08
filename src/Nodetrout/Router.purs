@@ -35,17 +35,17 @@ import Type.Trout (Method) as Trout
 import Type.Trout.ContentType (class AllMimeRender, class MimeParse, allMimeRender, mimeParse)
 import Type.Trout.PathPiece (class FromPathPiece, fromPathPiece)
 
-class Router layout handlers result | layout -> handlers, layout -> result where
-  route :: Proxy layout -> handlers -> Request -> result
+class Router layout handlers m result | layout -> handlers, layout -> result where
+  route :: Proxy layout -> handlers -> Request -> ExceptT HTTPError m result
 
 instance routerAltNamed ::
   ( Monad m
-  , Router layout handler (ExceptT HTTPError m result)
-  , Router otherLayout (Record otherHandlers) (ExceptT HTTPError m result)
+  , Router layout handler m result
+  , Router otherLayout (Record otherHandlers) m result
   , IsSymbol name
   , Row.Cons name handler otherHandlers handlers
   , Row.Lacks name otherHandlers
-  ) => Router (name := layout :<|> otherLayout) (Record handlers) (ExceptT HTTPError m result) where
+  ) => Router (name := layout :<|> otherLayout) (Record handlers) m result where
   route _ handlers request = do
     eitherResult1 <- lift $ runExceptT $ route (Proxy :: Proxy layout) (Record.get name handlers) request
     case eitherResult1 of
@@ -63,17 +63,17 @@ instance routerAltNamed ::
 
 instance routerNamed ::
   ( Monad m
-  , Router layout handler (ExceptT HTTPError m result)
+  , Router layout handler m result
   , IsSymbol name
   , Row.Cons name handler () handlers
-  ) => Router (name := layout) (Record handlers) (ExceptT HTTPError m result) where
+  ) => Router (name := layout) (Record handlers) m result where
   route _ handlers = route (Proxy :: Proxy layout) (Record.get (SProxy :: SProxy name) handlers)
 
 instance routerLit ::
   ( Monad m
-  , Router layout handlers (ExceptT HTTPError m result)
+  , Router layout handlers m result
   , IsSymbol segment
-  ) => Router (Lit segment :> layout) handlers (ExceptT HTTPError m result) where
+  ) => Router (Lit segment :> layout) handlers m result where
   route _ handlers request =
     case Request.unconsPath request of
       Tuple (Just head) scopedRequest | head == reflectSymbol (SProxy :: SProxy segment) ->
@@ -83,9 +83,9 @@ instance routerLit ::
 
 instance routerCapture ::
   ( Monad m
-  , Router layout handlers (ExceptT HTTPError m next)
+  , Router layout handlers m result
   , FromPathPiece value
-  ) => Router (Capture label value :> layout) (value -> handlers) (ExceptT HTTPError m next) where
+  ) => Router (Capture label value :> layout) (value -> handlers) m result where
   route _ handlers request =
     case Request.unconsPath request of
       Tuple (Just head) scopedRequest ->
@@ -99,9 +99,9 @@ instance routerCapture ::
 
 instance routerCaptureAll ::
   ( Monad m
-  , Router layout handlers (ExceptT HTTPError m next)
+  , Router layout handlers m result
   , FromPathPiece value
-  ) => Router (CaptureAll label value :> layout) (Array value -> handlers) (ExceptT HTTPError m next) where
+  ) => Router (CaptureAll label value :> layout) (Array value -> handlers) m result where
   route _ handlers request =
     let
       (Tuple path scopedRequest) = Request.removePath request
@@ -114,10 +114,10 @@ instance routerCaptureAll ::
 
 instance routerQueryParam ::
   ( Monad m
-  , Router layout handlers (ExceptT HTTPError m next)
+  , Router layout handlers m result
   , IsSymbol label
   , FromPathPiece value
-  ) => Router (QueryParam label value :> layout) (Maybe value -> handlers) (ExceptT HTTPError m next) where
+  ) => Router (QueryParam label value :> layout) (Maybe value -> handlers) m result where
   route _ handlers request =
     let
       label = reflectSymbol (SProxy :: SProxy label)
@@ -134,10 +134,10 @@ instance routerQueryParam ::
 
 instance routerQueryParams ::
   ( Monad m
-  , Router layout handlers (ExceptT HTTPError m next)
+  , Router layout handlers m result
   , IsSymbol label
   , FromPathPiece value
-  ) => Router (QueryParams label value :> layout) (Array value -> handlers) (ExceptT HTTPError m next) where
+  ) => Router (QueryParams label value :> layout) (Array value -> handlers) m result where
   route _ handlers request =
     let
       label = reflectSymbol (SProxy :: SProxy label)
@@ -151,9 +151,9 @@ instance routerQueryParams ::
 instance routerReqBody ::
   ( Monad m
   , MonadAff m
-  , Router layout handlers (ExceptT HTTPError m next)
+  , Router layout handlers m result
   , MimeParse String contentType parsed
-  ) => Router (ReqBody parsed contentType :> layout) (parsed -> handlers) (ExceptT HTTPError m next) where
+  ) => Router (ReqBody parsed contentType :> layout) (parsed -> handlers) m result where
   route _ handlers request =
     liftAff (Request.readString request) >>= case _ of
       Just body ->
@@ -170,7 +170,7 @@ instance routerMethod ::
   , IsSymbol method
   , AllMimeRender body contentTypes rendered
   , Row.Cons method (ExceptT HTTPError m body) handlers' handlers
-  ) => Router (Trout.Method method body contentTypes) (Record handlers) (ExceptT HTTPError m (Tuple MediaType rendered)) where
+  ) => Router (Trout.Method method body contentTypes) (Record handlers) m (Tuple MediaType rendered) where
   route layout handlers request = do
     let method = SProxy :: SProxy method
     when (not $ null $ Request.path request)
@@ -183,6 +183,6 @@ instance routerMethod ::
 
 instance routerResource ::
   ( Monad m
-  , Router layout handlers (ExceptT HTTPError m result)
-  ) => Router (Resource layout) handlers (ExceptT HTTPError m result) where
+  , Router layout handlers m result
+  ) => Router (Resource layout) handlers m result where
   route _ = route (Proxy :: Proxy layout)
