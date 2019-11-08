@@ -12,8 +12,8 @@ import Effect (Effect)
 import Effect.Aff (Aff, makeAff, nonCanceler, runAff_)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Exception (Error)
-import Effect.Ref (modify_, new, read) as Ref
-import Node.Buffer (concat, toString) as Buffer
+import Effect.Ref (modify_, new, read, write) as Ref
+import Node.Buffer (concat, create, toString) as Buffer
 import Node.Encoding (Encoding(UTF8))
 import Node.HTTP (Request, Response) as NH
 import Node.HTTP
@@ -31,22 +31,37 @@ import Nodetrout.Request (Request(..))
 import Nodetrout.Router (class Router, route)
 import Type.Proxy (Proxy)
 
-convertRequest :: NH.Request -> Request
-convertRequest req = Request
-  { method: requestMethod req
-  , url: requestURL req
-  , headers: requestHeaders req
-  , readString: makeAff \done -> do
-      chunks <- Ref.new []
-      Stream.onData (requestAsStream req) \chunk -> Ref.modify_ (cons chunk) chunks
-      Stream.onEnd (requestAsStream req) $ Ref.read chunks >>=
-        case _ of
-          [] ->
-            done $ Right Nothing
-          chx ->
-            Buffer.concat chx >>= Buffer.toString UTF8 >>= Just >>> Right >>> done
-      pure nonCanceler
-  }
+convertRequest :: NH.Request -> Effect Request
+convertRequest req = do
+  requestData <- Ref.new Nothing
+  pure $ Request
+    { method: requestMethod req
+    , url: requestURL req
+    , headers: requestHeaders req
+    , readString: makeAff \done -> do
+        previousData <- Ref.read requestData
+        case previousData of
+          Just buffer -> do
+            stringData <- Buffer.toString UTF8 buffer
+            done $ Right $ case stringData of
+                             "" -> Nothing
+                             _ -> Just stringData
+          Nothing -> do
+            chunks <- Ref.new []
+            Stream.onData (requestAsStream req) \chunk -> Ref.modify_ (cons chunk) chunks
+            Stream.onEnd (requestAsStream req) $ Ref.read chunks >>=
+              case _ of
+                [] -> do
+                  emptyBuffer <- Buffer.create 0
+                  Ref.write (Just emptyBuffer) requestData
+                  done $ Right Nothing
+                chx -> do
+                  reqData <- Buffer.concat chx
+                  Ref.write (Just reqData) requestData
+                  stringData <- Buffer.toString UTF8 reqData
+                  done $ Right $ Just stringData
+        pure nonCanceler
+    }
 
 serve
   :: forall layout handlers m content
@@ -75,7 +90,8 @@ serve layout handlers runM onError req res =
         onError error
   in
     runAff_ requestCallback $ runM do
-      result <- runExceptT $ route layout handlers (convertRequest req)
+      request <- liftEffect $ convertRequest req
+      result <- runExceptT $ route layout handlers request
       liftEffect $ case result of
         Left error -> do
           setStatusCode res $ error ^. _errorStatusCode
