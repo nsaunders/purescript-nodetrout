@@ -22,8 +22,8 @@ import Nodetrout.Request
   , path
   , queryParamValue
   , queryParamValues
-  , readString
   , removePath
+  , stringBody
   , unconsPath
   ) as Request
 import Prim.Row (class Cons, class Lacks) as Row
@@ -155,7 +155,7 @@ instance routerReqBody ::
   , MimeParse String contentType parsed
   ) => Router (ReqBody parsed contentType :> layout) (parsed -> handlers) m result where
   route _ handlers request =
-    liftAff (Request.readString request) >>= case _ of
+    liftAff (Request.stringBody request) >>= case _ of
       Just body ->
         case mimeParse (Proxy :: Proxy contentType) body of
           Right parsed ->

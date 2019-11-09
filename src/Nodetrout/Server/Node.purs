@@ -4,6 +4,7 @@ import Prelude
 import Control.Monad.Except (runExceptT)
 import Data.Array (cons)
 import Data.Either (Either(..))
+import Data.Foldable (find)
 import Data.Lens ((^.))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.MediaType (MediaType(..))
@@ -13,7 +14,7 @@ import Effect.Aff (Aff, makeAff, nonCanceler, runAff_)
 import Effect.Class (class MonadEffect, liftEffect)
 import Effect.Exception (Error)
 import Effect.Ref (modify_, new, read, write) as Ref
-import Node.Buffer (concat, create, toString) as Buffer
+import Node.Buffer (concat, toString) as Buffer
 import Node.Encoding (Encoding(UTF8))
 import Node.HTTP (Request, Response) as NH
 import Node.HTTP
@@ -34,33 +35,24 @@ import Type.Proxy (Proxy)
 convertRequest :: NH.Request -> Effect Request
 convertRequest req = do
   requestData <- Ref.new Nothing
+  let body = makeAff \done -> do
+        previousData <- Ref.read requestData
+        case previousData of
+          Just buffer ->
+            done $ Right buffer
+          Nothing -> do
+            chunks <- Ref.new []
+            Stream.onData (requestAsStream req) \chunk -> Ref.modify_ (cons chunk) chunks
+            Stream.onEnd (requestAsStream req) $ Ref.read chunks >>= \chx -> do
+              buffer <- Buffer.concat chx
+              Ref.write (Just buffer) requestData
+              done $ Right buffer
+        pure nonCanceler
   pure $ Request
     { method: requestMethod req
     , url: requestURL req
     , headers: requestHeaders req
-    , readString: makeAff \done -> do
-        previousData <- Ref.read requestData
-        case previousData of
-          Just buffer -> do
-            stringData <- Buffer.toString UTF8 buffer
-            done $ Right $ case stringData of
-                             "" -> Nothing
-                             _ -> Just stringData
-          Nothing -> do
-            chunks <- Ref.new []
-            Stream.onData (requestAsStream req) \chunk -> Ref.modify_ (cons chunk) chunks
-            Stream.onEnd (requestAsStream req) $ Ref.read chunks >>=
-              case _ of
-                [] -> do
-                  emptyBuffer <- Buffer.create 0
-                  Ref.write (Just emptyBuffer) requestData
-                  done $ Right Nothing
-                chx -> do
-                  reqData <- Buffer.concat chx
-                  Ref.write (Just reqData) requestData
-                  stringData <- Buffer.toString UTF8 reqData
-                  done $ Right $ Just stringData
-        pure nonCanceler
+    , stringBody: find (_ /= "") <<< Just <$> (liftEffect <<< Buffer.toString UTF8 =<< body)
     }
 
 serve

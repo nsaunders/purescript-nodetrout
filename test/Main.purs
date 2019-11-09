@@ -28,7 +28,7 @@ type RequestSpec =
   { method :: String
   , url :: String
   , headers :: Object String
-  , readString :: Aff (Maybe String)
+  , stringBody :: Aff (Maybe String)
   } 
 
 defaultRequest :: RequestSpec
@@ -36,7 +36,7 @@ defaultRequest =
   { method: "GET"
   , url: "/"
   , headers: FO.singleton "accept" "*/*"
-  , readString: pure Nothing
+  , stringBody: pure Nothing
   }
 
 processRequest :: forall m. Monad m => MonadAff m => RequestSpec -> m (Either HTTPError (Tuple MediaType String))
@@ -82,7 +82,7 @@ main = launchAff_ $ runSpec [consoleReporter] do
       result <- processRequest $ defaultRequest
                   { method = "POST"
                   , url = "/api/messages"
-                  , readString = pure $ Just reqBody
+                  , stringBody = pure $ Just reqBody
                   }
       case result of
         Left error ->

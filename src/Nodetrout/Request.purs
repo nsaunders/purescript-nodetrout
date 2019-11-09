@@ -9,7 +9,6 @@ import Data.FormURLEncoded (FormURLEncoded(..))
 import Data.FormURLEncoded (decode) as FUE
 import Data.HTTP.Method (CustomMethod, Method)
 import Data.HTTP.Method (fromString) as Method
-import Data.Lazy (Lazy, force)
 import Data.Newtype (class Newtype, un)
 import Data.String (joinWith, split, toLower) as String
 import Data.String.CodeUnits (drop, dropWhile, takeWhile) as String
@@ -22,7 +21,7 @@ newtype Request = Request
   { method :: String
   , url :: String
   , headers :: Object String
-  , readString :: Aff (Maybe String)
+  , stringBody :: Aff (Maybe String)
   }
 
 derive instance newtypeRequest :: Newtype Request _
@@ -40,8 +39,8 @@ query (Request { url }) =
 headers :: Request -> Object String
 headers = _.headers <<< un Request
 
-readString :: Request -> Aff (Maybe String)
-readString = _.readString <<< un Request
+stringBody :: Request -> Aff (Maybe String)
+stringBody = _.stringBody <<< un Request
 
 replacePath :: Array String -> Request -> Request
 replacePath p (Request r) =
