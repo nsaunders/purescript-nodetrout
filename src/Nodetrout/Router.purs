@@ -4,7 +4,7 @@ import Prelude
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Trans.Class (lift)
 import Data.Array (null)
-import Data.Either (Either(..))
+import Data.Either (Either(..), note)
 import Data.Lens ((.~))
 import Data.HTTP.Method (fromString) as Method
 import Data.Maybe (Maybe(..))
@@ -18,7 +18,8 @@ import Nodetrout.Error (select) as Error
 import Nodetrout.Error (HTTPError, _errorDetails, error400, error404, error405)
 import Nodetrout.Request (Request)
 import Nodetrout.Request
-  ( method
+  ( headerValue
+  , method
   , path
   , queryParamValue
   , queryParamValues
@@ -30,9 +31,22 @@ import Prim.Row (class Cons, class Lacks) as Row
 import Record (delete, get) as Record
 import Type.Data.Symbol (class IsSymbol)
 import Type.Proxy (Proxy(..))
-import Type.Trout (type (:<|>), type (:>), type (:=), Capture, CaptureAll, Lit, QueryParam, QueryParams, ReqBody, Resource)
+import Type.Trout
+  ( type (:<|>)
+  , type (:>)
+  , type (:=)
+  , Capture
+  , CaptureAll
+  , Header
+  , Lit
+  , QueryParam
+  , QueryParams
+  , ReqBody
+  , Resource
+  )
 import Type.Trout (Method) as Trout
 import Type.Trout.ContentType (class AllMimeRender, class MimeParse, allMimeRender, mimeParse)
+import Type.Trout.Header (class FromHeader, fromHeader)
 import Type.Trout.PathPiece (class FromPathPiece, fromPathPiece)
 
 class Router layout handlers m result | layout -> handlers, layout -> result where
@@ -147,6 +161,22 @@ instance routerQueryParams ::
           route (Proxy :: Proxy layout) (handlers values) request
         Left _ ->
           throwError $ error400 # _errorDetails .~ Just ("Invalid value for query parameter " <> label)
+
+instance routerHeader ::
+  ( Monad m
+  , Router layout handlers m result
+  , IsSymbol name
+  , FromHeader value
+  ) => Router (Header name value :> layout) (value -> handlers) m result where
+  route _ handlers request =
+    let
+      name = reflectSymbol (SProxy :: SProxy name)
+    in
+      case (note ("Missing value") (Request.headerValue name request) >>= fromHeader) of
+        Right value ->
+          route (Proxy :: Proxy layout) (handlers value) request
+        Left error ->
+          throwError $ error400 # _errorDetails .~ Just ("Header " <> name <> ": " <> error)
 
 instance routerReqBody ::
   ( Monad m

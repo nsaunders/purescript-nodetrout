@@ -22,6 +22,7 @@ import Type.Trout
   , type (:>)
   , Capture
   , CaptureAll
+  , Header
   , QueryParam
   , QueryParams
   , ReqBody
@@ -58,10 +59,15 @@ instance fromPathPiecePathBoolean :: FromPathPiece PathBoolean where
     "1" -> pure true
     unrecognized -> Left unrecognized
 
-
 derive instance newtypePathBoolean :: Newtype PathBoolean _
 
+data Admin = Admin String
+
+instance encodeHTMLAdmin :: EncodeHTML Admin where
+  encodeHTML (Admin username) = h1 $ text username
+
 type Site = "default" := Resource (Get Default (JSON :<|> HTML))
+       :<|> "admin" := "admin" :/ Header "Authorization" String :> Resource (Get Admin HTML)
        :<|> "api" := "api" :/ (
          "messages" := "messages" :/ (
                 "messages" := QueryParams "content" String :> QueryParam "unread" PathBoolean :> Resource (Get (Array Message) JSON)
@@ -95,6 +101,7 @@ resources
   :: forall m
    . Monad m
   => { default :: { "GET" :: Handler m Default }
+     , admin :: String -> { "GET" :: Handler m Admin }
      , api ::
        { messages ::
          { messages :: Array String -> Maybe PathBoolean -> { "GET" :: Handler m (Array Message) }
@@ -106,6 +113,7 @@ resources
      }
 resources =
   { default: { "GET": pure Default }
+  , admin: \username -> { "GET": pure (Admin username) }
   , api:
     { messages:
       { messages: \content -> map (un PathBoolean) >>> \unread ->

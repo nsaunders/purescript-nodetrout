@@ -76,6 +76,17 @@ main = launchAff_ $ runSpec [consoleReporter] do
           content
           `shouldEqual`
           (stringify $ encodeJson $ filter (\m -> messageHasContent "i" m || messageHasContent "llo" m) messages)
+  describe "header handling" do
+    it "should parse the specified header and provide it as an argument to the handler" do
+      result <- processRequest $ defaultRequest
+                  { url = "/admin"
+                  , headers = FO.insert "Authorization" "fake_user" defaultRequest.headers
+                  }
+      case result of
+        Left _ ->
+          fail "Request failed unexpectedly."
+        Right (Tuple _ content) ->
+          content `shouldEqual` "<h1>fake_user</h1>"
   describe "request body processing" do
     it "should parse the expected request body and provide it as an argument to the handler" do
       let reqBody = stringify $ encodeJson { id: 4, content: "Greetings", unread: true }
