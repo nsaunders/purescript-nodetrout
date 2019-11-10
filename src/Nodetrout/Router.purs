@@ -164,10 +164,10 @@ instance routerQueryParams ::
 
 instance routerHeader ::
   ( Monad m
-  , Router layout handlers (ExceptT HTTPError m next)
+  , Router layout handlers m result
   , IsSymbol name
   , FromHeader value
-  ) => Router (Header name value :> layout) (value -> handlers) (ExceptT HTTPError m next) where
+  ) => Router (Header name value :> layout) (value -> handlers) m result where
   route _ handlers request =
     let
       name = reflectSymbol (SProxy :: SProxy name)

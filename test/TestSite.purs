@@ -101,7 +101,7 @@ resources
   :: forall m
    . Monad m
   => { default :: { "GET" :: Handler m Default }
-<<<<<<< HEAD
+     , admin :: String -> { "GET" :: Handler m Admin }
      , api ::
        { messages ::
          { messages :: Array String -> Maybe PathBoolean -> { "GET" :: Handler m (Array Message) }
@@ -110,16 +110,10 @@ resources
          , newMessage :: Message -> { "POST" :: Handler m Message }
          }
        }
-=======
-     , messages :: Array String -> Maybe PathBoolean -> { "GET" :: Handler m (Array Message) }
-     , messageById :: Int -> { "GET" :: Handler m Message }
-     , messagesById :: Array Int -> { "GET" :: Handler m (Array Message) }
-     , newMessage :: Message -> { "POST" :: Handler m Message }
-     , admin :: String -> { "GET" :: Handler m Admin }
->>>>>>> Support for Header combinator.
      }
 resources =
   { default: { "GET": pure Default }
+  , admin: \username -> { "GET": pure (Admin username) }
   , api:
     { messages:
       { messages: \content -> map (un PathBoolean) >>> \unread ->
@@ -147,19 +141,5 @@ resources =
       , messagesById: \ids -> { "GET": pure $ filter (foldr (||) (const false) (messageHasId <$> ids)) messages }
       , newMessage: \message -> { "POST": pure message }
       }
-<<<<<<< HEAD
     }
-=======
-  , messageById: \id ->
-      { "GET":
-          case find (messageHasId id) messages of
-            Just message ->
-              pure message
-            Nothing ->
-              throwError $ error404 # _errorDetails .~ Just ("No message has ID " <> show id <> ".")
-      }
-  , messagesById: \ids -> { "GET": pure $ filter (foldr (||) (const false) (messageHasId <$> ids)) messages }
-  , newMessage: \message -> { "POST": pure message }
-  , admin: \username -> { "GET": pure (Admin username) }
->>>>>>> Support for Header combinator.
   }
