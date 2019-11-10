@@ -1,16 +1,10 @@
 let mkPackage =
-      https://raw.githubusercontent.com/purescript/package-sets/psc-0.13.3-20191005/src/mkPackage.dhall sha256:0b197efa1d397ace6eb46b243ff2d73a3da5638d8d0ac8473e8e4a8fc528cf57
+      https://raw.githubusercontent.com/purescript/package-sets/psc-0.13.4-20191110/src/mkPackage.dhall sha256:0b197efa1d397ace6eb46b243ff2d73a3da5638d8d0ac8473e8e4a8fc528cf57
 
 let upstream =
-      https://raw.githubusercontent.com/purescript/package-sets/psc-0.13.3-20191005/src/packages.dhall sha256:ba287d858ada09c4164792ad4e643013b742c208cbedf5de2e35ee27b64b6817
+      https://raw.githubusercontent.com/purescript/package-sets/psc-0.13.4-20191110/src/packages.dhall sha256:563a7f694e18e6399f7f6d01f5b7e3c3345781655d99945768f48e458feb93a4
 
-let overrides =
-  { trout =
-        upstream.trout
-     // { repo = "https://github.com/nsaunders/purescript-trout.git"
-        , version = "4edde87293e3905817bfa184e1434be5d2989f39"
-        }
-  }
+let overrides = {=}
 
 let additions = {=}
 
