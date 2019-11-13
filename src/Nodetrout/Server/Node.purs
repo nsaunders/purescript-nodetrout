@@ -83,7 +83,7 @@ serve layout handlers runM onError req res =
   in
     runAff_ requestCallback $ runM do
       request <- liftEffect $ convertRequest req
-      result <- runExceptT $ route layout handlers request
+      result <- runExceptT $ route layout handlers request 0
       liftEffect $ case result of
         Left error -> do
           setStatusCode res $ error ^. _errorStatusCode

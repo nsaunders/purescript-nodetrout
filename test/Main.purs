@@ -40,7 +40,7 @@ defaultRequest =
   }
 
 processRequest :: forall m. Monad m => MonadAff m => RequestSpec -> m (Either HTTPError (Tuple MediaType String))
-processRequest = runExceptT <<< route site resources <<< Request
+processRequest = runExceptT <<< (\r -> route site resources r 0) <<< Request
 
 main :: Effect Unit
 main = launchAff_ $ runSpec [consoleReporter] do
