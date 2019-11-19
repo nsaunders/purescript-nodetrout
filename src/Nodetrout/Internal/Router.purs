@@ -1,4 +1,4 @@
-module Nodetrout.Router where
+module Nodetrout.Internal.Router where
   
 import Prelude
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
@@ -13,11 +13,11 @@ import Data.Symbol (SProxy(..), reflectSymbol)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff, liftAff)
-import Nodetrout.Content (negotiate) as Content
-import Nodetrout.Error (select) as Error
-import Nodetrout.Error (HTTPError, _errorDetails, _errorPriority, error400, error404, error405)
-import Nodetrout.Request (Request)
-import Nodetrout.Request
+import Nodetrout.Internal.Content (negotiate) as Content
+import Nodetrout.Internal.Error (select) as Error
+import Nodetrout.Internal.Error (HTTPError, _errorDetails, _errorPriority, error400, error404, error405)
+import Nodetrout.Internal.Request (Request)
+import Nodetrout.Internal.Request
   ( headerValue
   , method
   , path

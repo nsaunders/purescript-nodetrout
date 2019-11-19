@@ -1,4 +1,4 @@
-module Nodetrout.Request where
+module Nodetrout.Internal.Request where
 
 import Prelude
 import Data.Array (catMaybes, filter, head, uncons)

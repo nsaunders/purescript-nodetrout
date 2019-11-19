@@ -11,7 +11,7 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un)
 import Data.String (contains, toLower) as String
 import Data.String.Pattern (Pattern(..))
-import Nodetrout.Error (HTTPError, _errorDetails, error404)
+import Nodetrout (HTTPError, _errorDetails, error404)
 import Text.Smolder.HTML (h1)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))

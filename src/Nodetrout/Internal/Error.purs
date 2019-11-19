@@ -1,4 +1,4 @@
-module Nodetrout.Error where
+module Nodetrout.Internal.Error where
   
 import Prelude
 import Data.Lens (Lens', (^.), lens)

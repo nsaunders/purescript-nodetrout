@@ -1,4 +1,4 @@
-module Nodetrout.Server.Node where
+module Nodetrout.Internal.Server.Node where
 
 import Prelude
 import Control.Monad.Except (runExceptT)
@@ -27,9 +27,9 @@ import Node.HTTP
   , setStatusCode
   )
 import Node.Stream (Writable, end, onData, onEnd, writeString) as Stream
-import Nodetrout.Error (_errorDetails, _errorOverview, _errorStatusCode)
-import Nodetrout.Request (Request(..))
-import Nodetrout.Router (class Router, route)
+import Nodetrout.Internal.Error (_errorDetails, _errorOverview, _errorStatusCode)
+import Nodetrout.Internal.Request (Request(..))
+import Nodetrout.Internal.Router (class Router, route)
 import Type.Proxy (Proxy)
 
 convertRequest :: NH.Request -> Effect Request

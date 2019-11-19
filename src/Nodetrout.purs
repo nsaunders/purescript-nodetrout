@@ -1,6 +1,6 @@
 module Nodetrout (module Error, module Server) where
 
-import Nodetrout.Error
+import Nodetrout.Internal.Error
   ( HTTPError
   , _errorDetails
   , _errorOverview
@@ -39,4 +39,4 @@ import Nodetrout.Error
   , error505
   , select
   ) as Error
-import Nodetrout.Server.Node (serve) as Server
+import Nodetrout.Internal.Server.Node (serve) as Server

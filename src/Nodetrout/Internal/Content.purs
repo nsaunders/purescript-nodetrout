@@ -1,4 +1,4 @@
-module Nodetrout.Content where
+module Nodetrout.Internal.Content where
 
 import Prelude
 import Control.Alternative ((<|>))
@@ -12,8 +12,8 @@ import Data.MediaType.Common (applicationJSON, textHTML)
 import Data.String (split, trim)
 import Data.String.Pattern (Pattern(..))
 import Data.Tuple (Tuple, fst)
-import Nodetrout.Error (HTTPError, _errorDetails, error406)
-import Nodetrout.Request (Request, headerValue)
+import Nodetrout.Internal.Error (HTTPError, _errorDetails, error406)
+import Nodetrout.Internal.Request (Request, headerValue)
 
 data Acceptable
   = Required (Array MediaType)
