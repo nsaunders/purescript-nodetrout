@@ -19,6 +19,8 @@ data Acceptable
   | Preferred (Array MediaType)
   | Anything
 
+-- | Attempts to return the available content that best matches the client's
+-- | `Accept` header.
 negotiate
   :: forall m content
    . Monad m
@@ -33,6 +35,7 @@ negotiate request available = do
     Just content ->
       pure content
 
+-- | Parses known media types from the client's `Accept` header.
 getAcceptable
   :: forall m
    . Monad m
@@ -57,6 +60,8 @@ getAcceptable =
           then throwError error406 { details = Just "The requested media types are unsupported." }
           else pure (acceptable mimeTypes)
 
+-- | Selects from a list of content in various formats by what format is
+-- | `Acceptable`.
 selectContent
   :: forall content
    . Acceptable
