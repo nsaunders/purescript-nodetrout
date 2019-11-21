@@ -3,7 +3,6 @@ module Example.Header where
 import Prelude
 import Control.Monad.Except (ExceptT, except, throwError)
 import Data.Bifunctor (lmap)
-import Data.Lens ((.~))
 import Data.Maybe (Maybe(..))
 import Data.String.Base64 (decode)
 import Data.String.CodePoints (drop, take) as String
@@ -13,7 +12,7 @@ import Effect (Effect)
 import Effect.Console (log)
 import Effect.Exception (message)
 import Node.HTTP (createServer, listen)
-import Nodetrout (HTTPError, _errorDetails, error400, serve)
+import Nodetrout (HTTPError, error400, serve)
 import Type.Proxy (Proxy(..))
 import Type.Trout (type (:=), type (:>), Header, Resource)
 import Type.Trout.ContentType.JSON (JSON)
@@ -32,15 +31,15 @@ resources =
       \auth ->
         { "GET": do
             when ((String.toLower $ String.take 6 auth) /= "basic ")
-              $ throwError $ error400 # _errorDetails .~ Just "Only Basic authorization is supported."
+              $ throwError error400 { details = Just "Only Basic authorization is supported." }
             authStr <- except
-                       $ lmap (\e -> error400 # _errorDetails .~ Just ("Failed to decode header: " <> message e))
+                       $ lmap (\e -> error400 { details = Just ("Failed to decode header: " <> message e) })
                        $ decode $ String.drop 6 auth
             case String.split (Pattern ":") authStr of
               [ username, password ] ->
                 pure { username, password }
               _ ->
-                throwError $ error400 # _errorDetails .~ Just "The Authorization header is invalid."
+                throwError error400 { details = Just "The Authorization header is invalid." }
         }
     }
 

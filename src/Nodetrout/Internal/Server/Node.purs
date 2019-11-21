@@ -5,7 +5,6 @@ import Control.Monad.Except (runExceptT)
 import Data.Array (cons)
 import Data.Either (Either(..))
 import Data.Foldable (find)
-import Data.Lens ((^.))
 import Data.Maybe (Maybe(..), fromMaybe)
 import Data.MediaType (MediaType(..))
 import Data.Tuple (Tuple(..))
@@ -27,7 +26,6 @@ import Node.HTTP
   , setStatusCode
   )
 import Node.Stream (Writable, end, onData, onEnd, writeString) as Stream
-import Nodetrout.Internal.Error (_errorDetails, _errorOverview, _errorStatusCode)
 import Nodetrout.Internal.Request (Request(..))
 import Nodetrout.Internal.Router (class Router, route)
 import Type.Proxy (Proxy)
@@ -85,10 +83,10 @@ serve layout handlers runM onError req res =
       request <- liftEffect $ convertRequest req
       result <- runExceptT $ route layout handlers request 0
       liftEffect $ case result of
-        Left error -> do
-          setStatusCode res $ error ^. _errorStatusCode
+        Left { statusCode, overview, details } -> do
+          setStatusCode res statusCode
           setHeader res "content-type" "text/plain"
-          let body = error ^. _errorOverview <> fromMaybe "" ((\d -> ": " <> d) <$> error ^. _errorDetails)
+          let body = overview <> fromMaybe "" ((\d -> ": " <> d) <$> details)
           _ <- Stream.writeString rs UTF8 body $ pure unit
           Stream.end rs $ pure unit
         Right (Tuple (MediaType contentType) content) -> do

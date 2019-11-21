@@ -5,7 +5,6 @@ import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Trans.Class (lift)
 import Data.Array (null)
 import Data.Either (Either(..), note)
-import Data.Lens ((.~))
 import Data.HTTP.Method (fromString) as Method
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
@@ -15,7 +14,7 @@ import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Nodetrout.Internal.Content (negotiate) as Content
 import Nodetrout.Internal.Error (select) as Error
-import Nodetrout.Internal.Error (HTTPError, _errorDetails, _errorPriority, error400, error404, error405)
+import Nodetrout.Internal.Error (HTTPError, error400, error404, error405)
 import Nodetrout.Internal.Request (Request)
 import Nodetrout.Internal.Request
   ( headerValue
@@ -95,8 +94,7 @@ instance routerLit ::
       Tuple (Just head) scopedRequest | head == reflectSymbol (SProxy :: SProxy segment) ->
         route (Proxy :: Proxy layout) handlers scopedRequest (depth + 1)
       _ ->
-        throwError $ error404
-                   # _errorPriority .~ depth
+        throwError error404 { priority = depth }
 
 instance routerCapture ::
   ( Monad m
@@ -110,11 +108,9 @@ instance routerCapture ::
           Right value ->
             route (Proxy :: Proxy layout) (handlers value) scopedRequest $ depth + 1
           Left _ ->
-            throwError $ error404
-                       # _errorPriority .~ depth
+            throwError error404 { priority = depth }
       _ ->
-        throwError $ error404
-                   # _errorPriority .~ depth
+        throwError error404 { priority = depth }
 
 instance routerCaptureAll ::
   ( Monad m
@@ -129,8 +125,7 @@ instance routerCaptureAll ::
         Right value ->
           route (Proxy :: Proxy layout) (handlers value) scopedRequest $ depth + 1
         Left _ ->
-          throwError $ error404
-                     # _errorPriority .~ depth
+          throwError error404 { priority = depth }
 
 instance routerQueryParam ::
   ( Monad m
@@ -148,9 +143,7 @@ instance routerQueryParam ::
             Right value ->
               route (Proxy :: Proxy layout) (handlers $ Just value) request $ depth + 1
             Left _ ->
-              throwError $ error400
-                         # _errorDetails .~ Just ("Invalid value for query parameter " <> label)
-                         # _errorPriority .~ depth
+              throwError error400 { priority = depth, details = Just ("Invalid value for query parameter " <> label) }
         Nothing ->
           route (Proxy :: Proxy layout) (handlers Nothing) request $ depth + 1
 
@@ -168,9 +161,7 @@ instance routerQueryParams ::
         Right values ->
           route (Proxy :: Proxy layout) (handlers values) request $ depth + 1
         Left _ ->
-          throwError $ error400
-                     # _errorDetails .~ Just ("Invalid value for query parameter " <> label)
-                     # _errorPriority .~ depth
+          throwError error400 { priority = depth, details = Just ("Invalid value for query parameter " <> label) }
 
 instance routerHeader ::
   ( Monad m
@@ -186,9 +177,7 @@ instance routerHeader ::
         Right value ->
           route (Proxy :: Proxy layout) (handlers value) request $ depth + 1
         Left error ->
-          throwError $ error400
-                     # _errorDetails .~ Just ("Header " <> name <> ": " <> error)
-                     # _errorPriority .~ depth
+          throwError error400 { priority = depth, details = Just ("Header " <> name <> ": " <> error) }
 
 instance routerReqBody ::
   ( Monad m
@@ -203,13 +192,9 @@ instance routerReqBody ::
           Right parsed ->
             route (Proxy :: Proxy layout) (handlers parsed) request $ depth + 1
           Left e ->
-            throwError $ error400
-                       # _errorDetails .~ Just ("The request body was not in the expected format: " <> e)
-                       # _errorPriority .~ depth
+            throwError error400 { priority = depth, details = Just ("Request body not in expected format: " <> e) }
       Nothing ->
-        throwError $ error400
-                   # _errorDetails .~ Just "A request body is required, but none was provided."
-                   # _errorPriority .~ depth
+        throwError error400 { priority = depth, details = Just "A request body is required, but none was provided." }
 
 instance routerMethod ::
   ( Monad m
@@ -219,10 +204,8 @@ instance routerMethod ::
   ) => Router (Trout.Method method body contentTypes) (Record handlers) m (Tuple MediaType rendered) where
   route layout handlers request depth = do
     let method = SProxy :: SProxy method
-    when (not $ null $ Request.path request)
-      $ throwError (error404 # _errorPriority .~ depth)
-    when (Request.method request /= Method.fromString (reflectSymbol method))
-      $ throwError (error405 # _errorPriority .~ depth)
+    when (not $ null $ Request.path request) $ throwError error404 { priority = depth }
+    when (Request.method request /= Method.fromString (reflectSymbol method)) $ throwError error405 { priority = depth }
     body <- Record.get method handlers
     content <- Content.negotiate request $ allMimeRender (Proxy :: Proxy contentTypes) body
     pure content

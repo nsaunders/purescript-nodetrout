@@ -8,7 +8,6 @@
     , "form-urlencoded"
     , "http-methods"
     , "node-http"
-    , "profunctor-lenses"
     , "psci-support"
     , "spec"
     , "trout"

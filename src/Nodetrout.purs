@@ -2,9 +2,6 @@ module Nodetrout (module Error, module Server) where
 
 import Nodetrout.Internal.Error
   ( HTTPError
-  , _errorDetails
-  , _errorOverview
-  , _errorStatusCode
   , error300
   , error301
   , error302
