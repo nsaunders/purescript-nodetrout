@@ -3,6 +3,7 @@ module Nodetrout.Internal.Error where
 import Prelude
 import Data.Maybe (Maybe(..))
 
+-- | The type of an HTTP error, part of the handler type `ExceptT HTTPError m a`
 type HTTPError =
   { statusCode :: Int
   , overview :: String
@@ -10,6 +11,10 @@ type HTTPError =
   , priority :: Int
   }
 
+-- | Given two `HTTPError` values, determines the best response based on priority
+-- | or, when equal by priority, status code. The router assigns a lower priority
+-- | based on route specificity/depth so that the error presented to the client
+-- | is the one that is easier to resolve.
 select :: HTTPError -> HTTPError -> HTTPError
 select error1 error2
   | error1.priority > error2.priority = error1
@@ -17,6 +22,7 @@ select error1 error2
   | statusCodePriority error1 < statusCodePriority error2 = error2
   | otherwise = error1
 
+-- | Prioritizes status codes.
 statusCodePriority :: HTTPError -> Int
 statusCodePriority { statusCode } = case statusCode of
   404 -> 0
@@ -27,6 +33,7 @@ statusCodePriority { statusCode } = case statusCode of
   400 -> 6
   _ -> 5
 
+-- | Initializes an `HTTPError` with the specified status code and overview.
 mkError :: Int -> String -> HTTPError
 mkError statusCode overview = { statusCode, overview, details: Nothing, priority: 1000000 }
 
