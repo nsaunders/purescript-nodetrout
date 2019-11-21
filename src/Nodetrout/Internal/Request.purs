@@ -19,6 +19,8 @@ import Foreign.Object (Object, toArrayWithKey)
 
 -- | A `Request` contains the request method, URL, and headers, as well as an
 -- | `Aff` that reads the request body, which are used in the routing logic.
+-- | Since this library is only interested in building a Node server, this
+-- | abstraction really only exists to help test routing logic.
 newtype Request = Request
   { method :: String
   , url :: String
