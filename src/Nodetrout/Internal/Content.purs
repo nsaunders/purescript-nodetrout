@@ -1,4 +1,5 @@
-module Nodetrout.Internal.Content where
+-- | This module contains types and logic related to content negotiation.
+module Nodetrout.Internal.Content (negotiate) where
 
 import Prelude
 import Control.Alternative ((<|>))

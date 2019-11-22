@@ -7,7 +7,7 @@ import Data.Traversable (traverse_)
 import Effect (Effect)
 import Effect.Console (log)
 import Node.HTTP (createServer, listen)
-import Nodetrout (HTTPError, serve)
+import Nodetrout (HTTPError, serve')
 import Text.Smolder.HTML (html, li, ul)
 import Text.Smolder.HTML.Attributes (lang)
 import Text.Smolder.Markup ((!), text)
@@ -31,5 +31,5 @@ resources = { list: \items -> { "GET": pure $ List items } }
 
 main :: Effect Unit
 main = do
-  server <- createServer $ serve site resources identity (const $ pure unit)
+  server <- createServer $ serve' site resources (const $ pure unit)
   listen server { hostname: "0.0.0.0", port: 3000, backlog: Nothing } $ log "Listening on port 3000..."

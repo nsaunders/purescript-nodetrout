@@ -1,4 +1,5 @@
-module Nodetrout.Internal.Server.Node where
+-- | This module contains the request handling logic related to `node-http`.
+module Nodetrout.Internal.Server.Node (class ResponseWritable, serve, writeResponse) where
 
 import Prelude
 import Control.Monad.Except (runExceptT)

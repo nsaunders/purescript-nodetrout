@@ -1,4 +1,17 @@
-module Nodetrout.Internal.Request where
+-- | This module contains various request-processing functionality that would
+-- | otherwise clutter the `Router` module and increase its coupling to the Node
+-- | server (bad for testability).
+module Nodetrout.Internal.Request
+  ( Request(..)
+  , headerValue
+  , method
+  , path
+  , queryParamValue
+  , queryParamValues
+  , removePath
+  , stringBody
+  , unconsPath
+  ) where
 
 import Prelude
 import Data.Array (catMaybes, filter, head, uncons)

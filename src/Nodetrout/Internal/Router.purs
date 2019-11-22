@@ -1,4 +1,5 @@
-module Nodetrout.Internal.Router where
+-- | This module contains the routing logic.
+module Nodetrout.Internal.Router (class Router, route) where
   
 import Prelude
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
