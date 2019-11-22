@@ -48,8 +48,10 @@ import Type.Trout.ContentType (class AllMimeRender, class MimeParse, allMimeRend
 import Type.Trout.Header (class FromHeader, fromHeader)
 import Type.Trout.PathPiece (class FromPathPiece, fromPathPiece)
 
+-- | The specificity of a route, useful for prioritizing error responses
 type Depth = Int
 
+-- | Routes a request using the specified layout and handlers.
 class Router layout handlers m result | layout -> handlers, layout -> result where
   route :: Proxy layout -> handlers -> Request -> Depth -> ExceptT HTTPError m result
 
