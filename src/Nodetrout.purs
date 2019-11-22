@@ -34,6 +34,5 @@ import Nodetrout.Internal.Error
   , error503
   , error504
   , error505
-  , select
   ) as Error
 import Nodetrout.Internal.Server.Node (serve) as Server
