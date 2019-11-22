@@ -30,6 +30,8 @@ import Nodetrout.Internal.Request (Request(..))
 import Nodetrout.Internal.Router (class Router, route)
 import Type.Proxy (Proxy)
 
+-- | Specifies the method, URL, headers, and body of a request. This abstraction
+-- | exists so that the router can be tested with a fake request.
 convertRequest :: NH.Request -> Effect Request
 convertRequest req = do
   requestData <- Ref.new Nothing
@@ -53,6 +55,9 @@ convertRequest req = do
     , stringBody: find (_ /= "") <<< Just <$> (liftEffect <<< Buffer.toString UTF8 =<< body)
     }
 
+-- | Creates a `node-http`-compatible request handler of type
+-- | `Request -> Response -> Effect Unit` which executes the specified routing
+-- | logic.
 serve
   :: forall layout handlers m content
    . Monad m
@@ -95,6 +100,7 @@ serve layout handlers runM onError req res =
           writeResponse rs content
           Stream.end rs $ pure unit
 
+-- | Specifies how to write `content` to a response stream.
 class ResponseWritable content where
   writeResponse :: Stream.Writable () -> content -> Effect Unit
 
