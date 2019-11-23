@@ -36,7 +36,7 @@ instance encodeJsonGreeting :: EncodeJson Greeting where
   encodeJson (Greeting g) = encodeJson g
 
 instance encodeHTMLGreeting :: EncodeHTML Greeting where
-  encodeHTML = show >>> text >>> span
+  encodeHTML (Greeting { message }) = span $ text message
 
 type Site = "greetings" := Lit "greetings" :> QueryParam "filter" String :> Resource (Get (Array Greeting) JSON)
        :<|> "greeting" := "greetings" :/ Capture "id" Int :> Resource (Get Greeting (JSON :<|> HTML))
