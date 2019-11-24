@@ -1,5 +1,5 @@
 # purescript-nodetrout [![build status](https://img.shields.io/travis/nsaunders/purescript-nodetrout.svg)](https://travis-ci.org/nsaunders/purescript-nodetrout)
-## Build a Node server using Trout
+## Build a Node server with Trout.
 
 <img src="https://raw.githubusercontent.com/nsaunders/purescript-nodetrout/master/img/readme-tile.png" alt="purescript-nodetrout" align="right" />
 
