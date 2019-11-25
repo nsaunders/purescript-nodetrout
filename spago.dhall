@@ -1,5 +1,7 @@
 { name =
     "nodetrout"
+, license = "MIT"
+, repository = "https://github.com/nsaunders/purescript-nodetrout.git"
 , dependencies =
     [ "argonaut"
     , "b64"
