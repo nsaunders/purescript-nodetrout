@@ -31,10 +31,6 @@ main = do
   listen server { hostname: "0.0.0.0", port: 3000, backlog: Nothing } $ log "Listening on port 3000..."
 ```
 
-### Examples
-
-A number of usage examples are available [here](example).
-
 ### Installation
 
 [bower](https://github.com/bower/bower):
@@ -53,6 +49,8 @@ spago install nodetrout
 ```
 
 ### Examples
+
+A number of usage examples are available [here](example).
 
 To run the examples, clone the repository and run one of the following depending on your package manager and build tool, replacing `<example-name>` with the name of one of the [examples](example).
 
