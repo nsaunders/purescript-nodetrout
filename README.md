@@ -3,7 +3,7 @@
 
 <img src="https://raw.githubusercontent.com/nsaunders/purescript-nodetrout/master/img/readme-tile.png" alt="purescript-nodetrout" align="right" />
 
-[Trout](https://github.com/purescript-hyper/purescript-trout) is a type-level routing DSL similar to Haskell's [Servant](https://github.com/haskell-servant/servant) library. Given route specifications defined with Trout and their corresponding handlers, this library produces a [`node-http`](https://github.com/purescript-node/purescript-node-http) request handler of type `Request -> Response -> Effect Unit`, which [can be used to create an HTTP server](https://pursuit.purescript.org/packages/purescript-node-http/5.0.2/docs/Node.HTTP#v:createServer).
+[Trout](https://github.com/purescript-hyper/purescript-trout) is a type-level routing DSL similar to Haskell's [Servant](https://github.com/haskell-servant/servant) library. Given route specifications defined with Trout and their corresponding handlers, this library produces a [`node-http`](https://github.com/purescript-node/purescript-node-http) request handler function of type `Request -> Response -> Effect Unit`. The request handler [can then be used to create an HTTP server](https://pursuit.purescript.org/packages/purescript-node-http/5.0.2/docs/Node.HTTP#v:createServer).
 
 ### An API in 4 simple steps
 1. Specify routes as a data type. Here, we create a `GET /admin` route that requires a Basic Authorization header and responds with a greeting:
