@@ -5,6 +5,7 @@ import Control.Monad.Except (ExceptT)
 import Data.Argonaut (class DecodeJson, class EncodeJson, decodeJson, encodeJson)
 import Data.Array (reverse)
 import Data.Maybe (Maybe(..))
+import Data.Newtype (class Newtype, over, un)
 import Effect (Effect)
 import Effect.Console (log)
 import Node.HTTP (createServer, listen)
@@ -14,24 +15,23 @@ import Type.Trout (type (:=), type (:>), ReqBody, Resource)
 import Type.Trout.ContentType.JSON (JSON)
 import Type.Trout.Method (Post)
 
-newtype List = List (Array String)
+newtype ExampleList = ExampleList (Array String)
 
-reverseList :: List -> List
-reverseList (List items) = List $ reverse items
+derive instance newtypeExampleList :: Newtype ExampleList _
 
-instance decodeJsonList :: DecodeJson List where
-  decodeJson = map List <<< decodeJson
+instance decodeJsonList :: DecodeJson ExampleList where
+  decodeJson = map ExampleList <<< decodeJson
 
-instance encodeJsonList :: EncodeJson List where
-  encodeJson (List items) = encodeJson items
+instance encodeJsonList :: EncodeJson ExampleList where
+  encodeJson = encodeJson <<< un ExampleList
 
-type Site = "reversed" := ReqBody List JSON :> Resource (Post List JSON)
+type Site = "reversed" := ReqBody ExampleList JSON :> Resource (Post ExampleList JSON)
 
 site :: Proxy Site
 site = Proxy
 
-resources :: forall m. Monad m => { reversed :: List -> { "POST" :: ExceptT HTTPError m List } }
-resources = { reversed: \list -> { "POST": pure $ reverseList list } }
+resources :: forall m. Monad m => { reversed :: ExampleList -> { "POST" :: ExceptT HTTPError m ExampleList } }
+resources = { reversed: \list -> { "POST": pure $ over ExampleList reverse list } }
 
 main :: Effect Unit
 main = do
