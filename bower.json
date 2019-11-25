@@ -1,0 +1,28 @@
+{
+    "name": "purescript-nodetrout",
+    "license": [
+        "MIT"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/nsaunders/purescript-nodetrout.git"
+    },
+    "ignore": [
+        "**/.*",
+        "node_modules",
+        "bower_components",
+        "output"
+    ],
+    "dependencies": {
+        "purescript-argonaut": "^v6.0.0",
+        "purescript-b64": "^v0.0.6",
+        "purescript-console": "^v4.2.0",
+        "purescript-effect": "^v2.0.1",
+        "purescript-form-urlencoded": "^v5.0.0",
+        "purescript-http-methods": "^v4.0.2",
+        "purescript-node-http": "^v5.0.2",
+        "purescript-psci-support": "^v4.0.0",
+        "purescript-spec": "^v4.0.1",
+        "purescript-trout": "^v0.12.2"
+    }
+}
