@@ -7,24 +7,24 @@
 
 ### An API in 4 simple steps
 1. Specify routes as a data type. Here, we create a `GET /admin` route that requires a Basic Authorization header and responds with a greeting:
-```
+```purescript
 type Site = "admin" := "admin" :/ Header "Authorization" BasicAuth :> Resource (Get Greeting JSON)
 ```
 
 2. Create a [`Proxy`](https://pursuit.purescript.org/packages/purescript-proxy/3.0.0/docs/Type.Proxy) value to capture the route specifications:
-```
+```purescript
 site :: Proxy Site
 site = Proxy
 ```
 
 3. Define a handler for each route. Here, we greet the user by the username specified in the Basic Authorization header:
-```
+```purescript
 resources :: forall m. Monad m => { admin :: BasicAuth -> { "GET" :: ExceptT HTTPError m Greeting } }
 resources = { admin: \auth -> { "GET": pure $ Greeting $ "Hello, " <> (fst $ un BasicAuth auth) } }
 ```
 
 4. Serve the API using `node-http`:
-```
+```purescript
 main :: Effect Unit
 main = do
   server <- createServer $ serve' site resources (const $ pure unit)
