@@ -1,8 +1,15 @@
 -- | This module contains the request handling logic related to `node-http`.
-module Nodetrout.Internal.Server.Node (class ResponseWritable, serve, writeResponse) where
+module Nodetrout.Internal.Server.Node
+  ( class ResponseWritable
+  , makeRouter
+  , serve
+  , serveRouter
+  , writeResponse
+  ) where
 
 import Prelude
-import Control.Monad.Except (runExceptT)
+
+import Control.Monad.Except (ExceptT, runExceptT)
 import Data.Array (cons)
 import Data.Either (Either(..))
 import Data.Foldable (find)
@@ -27,6 +34,7 @@ import Node.HTTP
   , setStatusCode
   )
 import Node.Stream (Writable, end, onData, onEnd, writeString) as Stream
+import Nodetrout.Internal.Error (HTTPError)
 import Nodetrout.Internal.Request (Request(..))
 import Nodetrout.Internal.Router (class Router, route)
 import Type.Proxy (Proxy)
@@ -56,6 +64,59 @@ convertRequest req = do
     , stringBody: find (_ /= "") <<< Just <$> (liftEffect <<< Buffer.toString UTF8 =<< body)
     }
 
+serveRouter
+  :: forall m content
+   . Monad m
+  => MonadEffect m
+  => ResponseWritable content
+  => (Request -> ExceptT HTTPError m (Tuple MediaType content))
+  -> (m ~> Aff)
+  -> (Error -> Effect Unit)
+  -> NH.Request
+  -> NH.Response
+  -> Effect Unit
+serveRouter router runM onError req res =
+  let
+    rs = responseAsStream res
+    requestCallback = case _ of
+      Right _ ->
+        pure unit
+      Left error -> do
+        setStatusCode res 500
+        setHeader res "content-type" "text/plain"
+        _ <- Stream.writeString rs UTF8 "An unexpected error occurred while processing the request." $ pure unit
+        Stream.end rs $ pure unit
+        onError error
+  in
+    runAff_ requestCallback $ runM do
+      request <- liftEffect $ convertRequest req
+      result <- runExceptT $ router request
+      liftEffect $ case result of
+        Left { statusCode, overview, details } -> do
+          setStatusCode res statusCode
+          setHeader res "content-type" "text/plain"
+          let body = overview <> fromMaybe "" ((\d -> ": " <> d) <$> details)
+          _ <- Stream.writeString rs UTF8 body $ pure unit
+          Stream.end rs $ pure unit
+        Right (Tuple (MediaType contentType) content) -> do
+          setStatusCode res 200
+          setHeader res "content-type" contentType
+          writeResponse rs content
+          Stream.end rs $ pure unit
+
+makeRouter
+  :: forall layout handlers m content
+   . Monad m
+  => MonadEffect m
+  => ResponseWritable content
+  => Router layout (Record handlers) m (Tuple MediaType content)
+  => Proxy layout
+  -> Record handlers
+  -> Request
+  -> ExceptT HTTPError m (Tuple MediaType content)
+makeRouter layout handlers =
+  flip (route layout handlers) 0
+
 -- | Creates a `node-http`-compatible request handler of type
 -- | `Request -> Response -> Effect Unit` which executes the specified routing
 -- | logic.
@@ -73,33 +134,7 @@ serve
   -> NH.Response
   -> Effect Unit
 serve layout handlers runM onError req res =
-  let
-    rs = responseAsStream res
-    requestCallback = case _ of
-      Right _ ->
-        pure unit
-      Left error -> do
-        setStatusCode res 500
-        setHeader res "content-type" "text/plain"
-        _ <- Stream.writeString rs UTF8 "An unexpected error occurred while processing the request." $ pure unit
-        Stream.end rs $ pure unit
-        onError error
-  in
-    runAff_ requestCallback $ runM do
-      request <- liftEffect $ convertRequest req
-      result <- runExceptT $ route layout handlers request 0
-      liftEffect $ case result of
-        Left { statusCode, overview, details } -> do
-          setStatusCode res statusCode
-          setHeader res "content-type" "text/plain"
-          let body = overview <> fromMaybe "" ((\d -> ": " <> d) <$> details)
-          _ <- Stream.writeString rs UTF8 body $ pure unit
-          Stream.end rs $ pure unit
-        Right (Tuple (MediaType contentType) content) -> do
-          setStatusCode res 200
-          setHeader res "content-type" contentType
-          writeResponse rs content
-          Stream.end rs $ pure unit
+  serveRouter (makeRouter layout handlers) runM onError req res
 
 -- | Specifies how to write `content` to a response stream.
 class ResponseWritable content where
