@@ -1,5 +1,9 @@
 -- | This module exports Nodetrout's public API.
-module Nodetrout (serve, serve', module Error) where
+module Nodetrout
+  ( serve
+  , serve'
+  , module Exports
+  ) where
 
 import Prelude
 import Data.MediaType (MediaType)
@@ -43,9 +47,11 @@ import Nodetrout.Internal.Error
   , error503
   , error504
   , error505
-  ) as Error
+  ) as Exports
+import Nodetrout.Internal.Request (Request) as Exports
 import Nodetrout.Internal.Router (class Router)
 import Nodetrout.Internal.Server.Node as NS
+import Nodetrout.Internal.Server.Node (serveRouter, makeRouter) as Exports
 import Type.Proxy (Proxy)
 
 -- | Creates a `node-http`-compatible request handler of type
