@@ -64,6 +64,23 @@ convertRequest req = do
     , stringBody: find (_ /= "") <<< Just <$> (liftEffect <<< Buffer.toString UTF8 =<< body)
     }
 
+-- | Given a `layout` and `handlers`, create a router of type
+-- | `Nodetrout.Request -> `ExceptT Nodetrout.HTTPError m result`.
+makeRouter
+  :: forall layout handlers m content
+   . Monad m
+  => MonadEffect m
+  => ResponseWritable content
+  => Router layout (Record handlers) m (Tuple MediaType content)
+  => Proxy layout
+  -> Record handlers
+  -> Request
+  -> ExceptT HTTPError m (Tuple MediaType content)
+makeRouter layout handlers =
+  flip (route layout handlers) 0
+
+-- | Create a `node-http`-compatible request handler from a router
+-- | created with `makeRouter`.
 serveRouter
   :: forall m content
    . Monad m
@@ -103,19 +120,6 @@ serveRouter router runM onError req res =
           setHeader res "content-type" contentType
           writeResponse rs content
           Stream.end rs $ pure unit
-
-makeRouter
-  :: forall layout handlers m content
-   . Monad m
-  => MonadEffect m
-  => ResponseWritable content
-  => Router layout (Record handlers) m (Tuple MediaType content)
-  => Proxy layout
-  -> Record handlers
-  -> Request
-  -> ExceptT HTTPError m (Tuple MediaType content)
-makeRouter layout handlers =
-  flip (route layout handlers) 0
 
 -- | Creates a `node-http`-compatible request handler of type
 -- | `Request -> Response -> Effect Unit` which executes the specified routing
