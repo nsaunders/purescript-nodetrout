@@ -2,7 +2,7 @@
 module Nodetrout.Internal.Server.Node (class ResponseWritable, serve, writeResponse) where
 
 import Prelude
-import Control.Monad.Except (runExceptT)
+import Control.Monad.Except (ExceptT, runExceptT)
 import Data.Array (cons)
 import Data.Either (Either(..))
 import Data.Foldable (find)
@@ -27,6 +27,7 @@ import Node.HTTP
   , setStatusCode
   )
 import Node.Stream (Writable, end, onData, onEnd, writeString) as Stream
+import Nodetrout.Internal.Error (HTTPError)
 import Nodetrout.Internal.Request (Request(..))
 import Nodetrout.Internal.Router (class Router, route)
 import Type.Proxy (Proxy)
@@ -68,11 +69,12 @@ serve
   => Proxy layout
   -> Record handlers
   -> (m ~> Aff)
+  -> (NH.Request -> ExceptT HTTPError m (Tuple MediaType content) -> ExceptT HTTPError m (Tuple MediaType content))
   -> (Error -> Effect Unit)
   -> NH.Request
   -> NH.Response
   -> Effect Unit
-serve layout handlers runM onError req res =
+serve layout handlers runM foo onError req res =
   let
     rs = responseAsStream res
     requestCallback = case _ of
@@ -87,7 +89,7 @@ serve layout handlers runM onError req res =
   in
     runAff_ requestCallback $ runM do
       request <- liftEffect $ convertRequest req
-      result <- runExceptT $ route layout handlers request 0
+      result <- runExceptT $ foo req (route layout handlers request 0)
       liftEffect $ case result of
         Left { statusCode, overview, details } -> do
           setStatusCode res statusCode

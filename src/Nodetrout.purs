@@ -64,7 +64,7 @@ serve
   -> NH.Request
   -> NH.Response
   -> Effect Unit
-serve = NS.serve -- Note that the `serve` function is redeclared so that it appears at the top of the generated docs.
+serve a b c d e f = NS.serve a b c (const identity) d e f -- Note that the `serve` function is redeclared so that it appears at the top of the generated docs.
 
 -- | A version of `serve` that can be used where handlers run in
 -- | `ExceptT HTTPError Aff`, i.e. the inner monad is already `Aff`.
@@ -78,4 +78,4 @@ serve'
   -> NH.Request
   -> NH.Response
   -> Effect Unit
-serve' layout handlers = NS.serve layout handlers identity
+serve' layout handlers = NS.serve layout handlers identity (const identity)
