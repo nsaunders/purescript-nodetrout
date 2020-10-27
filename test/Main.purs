@@ -1,6 +1,7 @@
 module Test.Main where
 
 import Prelude
+
 import Control.Monad.Except (runExceptT)
 import Data.Argonaut (encodeJson, stringify)
 import Data.Array (filter)
@@ -18,7 +19,7 @@ import Foreign.Object (insert, singleton) as FO
 import Nodetrout.Internal.Error (HTTPError)
 import Nodetrout.Internal.Request (Request(..))
 import Nodetrout.Internal.Router (route)
-import Test.Site (Default(..), messages, messageHasContent, messageHasId, messageIsUnread, resources, site)
+import Test.Site (Default(..), magicMimeType, magicMimeTypeRenderString, messageHasContent, messageHasId, messageIsUnread, messages, resources, site)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter (consoleReporter)
@@ -109,6 +110,14 @@ main = launchAff_ $ runSpec [consoleReporter] do
         Right (Tuple mediaType content) -> do
           mediaType `shouldEqual` textHTML
           content `shouldEqual` "<h1>Home Page</h1>"
+    it "should be able to handle MIME types other than JSON and HTML" do
+      result <- processRequest $ defaultRequest { headers = FO.insert "accept" "application/magic" defaultRequest.headers }
+      case result of
+        Left error ->
+          fail $ "Request failed unexpectedly: " <> show error
+        Right (Tuple mediaType content) -> do
+          mediaType `shouldEqual` magicMimeType
+          content `shouldEqual` magicMimeTypeRenderString
     it "should deliver the content in the server's default format when the client will accept any content" do
       result <- processRequest defaultRequest
       case result of

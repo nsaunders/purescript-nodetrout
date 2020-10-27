@@ -7,9 +7,8 @@ import Control.Monad.Except (ExceptT, throwError)
 import Data.Array (catMaybes, elem, elemIndex, length)
 import Data.List.NonEmpty (NonEmptyList, find, head, reverse, sortBy)
 import Data.Maybe (Maybe(..))
-import Data.MediaType (MediaType)
-import Data.MediaType.Common (applicationJSON, textHTML)
-import Data.String (split, trim)
+import Data.MediaType (MediaType(..))
+import Data.String (indexOf, split, trim)
 import Data.String.Pattern (Pattern(..))
 import Data.Tuple (Tuple, fst)
 import Nodetrout.Internal.Error (HTTPError, error406)
@@ -52,10 +51,11 @@ getAcceptable =
       let
         values = trim <$> split (Pattern ",") header
         acceptable = if not $ "*/*" `elem` values then Required else Preferred
-        mimeTypes = catMaybes $ values <#> case _ of
-          "application/json" -> Just applicationJSON
-          "text/html" -> Just textHTML
-          _ -> Nothing
+        asUnparameterizedMediaType v =
+          if indexOf (Pattern ";") v == Nothing 
+          then Just (MediaType v)
+          else Nothing
+        mimeTypes = catMaybes $ values <#> asUnparameterizedMediaType
       in
         if (length mimeTypes == 0)
           then throwError error406 { details = Just "The requested media types are unsupported." }

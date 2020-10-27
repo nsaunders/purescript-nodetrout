@@ -1,12 +1,14 @@
 module Test.Site where
 
 import Prelude
+
 import Control.Monad.Except (ExceptT, throwError)
 import Data.Argonaut (class DecodeJson, class EncodeJson, jsonEmptyObject)
 import Data.Array (filter)
 import Data.Either (Either(Left))
 import Data.Foldable (find, foldr)
 import Data.Maybe (Maybe(..))
+import Data.MediaType (MediaType(..))
 import Data.Newtype (class Newtype, un)
 import Data.String (contains, toLower) as String
 import Data.String.Pattern (Pattern(..))
@@ -14,19 +16,8 @@ import Nodetrout (HTTPError, error404)
 import Text.Smolder.HTML (h1)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
-import Type.Trout
-  ( type (:/)
-  , type (:<|>)
-  , type (:=)
-  , type (:>)
-  , Capture
-  , CaptureAll
-  , Header
-  , QueryParam
-  , QueryParams
-  , ReqBody
-  , Resource
-  )
+import Type.Trout (type (:/), type (:<|>), type (:=), type (:>), Capture, CaptureAll, Header, QueryParam, QueryParams, ReqBody, Resource)
+import Type.Trout.ContentType (class HasMediaType, class MimeRender)
 import Type.Trout.ContentType.HTML (HTML, class EncodeHTML)
 import Type.Trout.ContentType.JSON (JSON)
 import Type.Trout.Method (Get, Post)
@@ -39,6 +30,20 @@ instance encodeJsonDefault :: EncodeJson Default where
 
 instance encodeHTMLDefault :: EncodeHTML Default where
   encodeHTML _ = h1 $ text "Home Page"
+
+data MagicContentType
+
+magicMimeType :: MediaType
+magicMimeType = MediaType "application/magic"
+
+magicMimeTypeRenderString :: String
+magicMimeTypeRenderString = "It's magic, you know!"
+
+instance hasMediaTypeMagic :: HasMediaType MagicContentType where
+  getMediaType _ = magicMimeType
+
+instance magicallyRenderMagicContentType :: MimeRender a MagicContentType String where
+  mimeRender _ _ = magicMimeTypeRenderString
 
 newtype Message = Message { id :: Int, content :: String, unread :: Boolean }
 
@@ -65,7 +70,7 @@ data Admin = Admin String
 instance encodeHTMLAdmin :: EncodeHTML Admin where
   encodeHTML (Admin username) = h1 $ text username
 
-type Site = "default" := Resource (Get Default (JSON :<|> HTML))
+type Site = "default" := Resource (Get Default (JSON :<|> HTML :<|> MagicContentType))
        :<|> "admin" := "admin" :/ Header "Authorization" String :> Resource (Get Admin HTML)
        :<|> "api" := "api" :/ (
          "messages" := "messages" :/ (
