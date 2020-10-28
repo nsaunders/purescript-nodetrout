@@ -26,7 +26,7 @@ import Type.Data.Symbol (class IsSymbol)
 import Type.Proxy (Proxy(..))
 import Type.Trout (Method) as Trout
 import Type.Trout (type (:<|>), type (:>), type (:=), Capture, CaptureAll, Header, Lit, QueryParam, QueryParams, ReqBody, Resource)
-import Type.Trout.ContentType (class AllMimeRender, class HasMediaType, class MimeParse, class MimeRender, allMimeRender, getMediaType, mimeParse, mimeRender)
+import Type.Trout.ContentType (class HasMediaType, class MimeParse, class MimeRender, getMediaType, mimeParse, mimeRender)
 import Type.Trout.Header (class FromHeader, fromHeader)
 import Type.Trout.PathPiece (class FromPathPiece, fromPathPiece)
 
