@@ -12,6 +12,8 @@ import Data.MediaType (MediaType(..))
 import Data.Newtype (class Newtype, un)
 import Data.String (contains, toLower) as String
 import Data.String.Pattern (Pattern(..))
+import Effect (Effect)
+import Effect.Class (class MonadEffect, liftEffect)
 import Nodetrout (HTTPError, error404)
 import Text.Smolder.HTML (h1)
 import Text.Smolder.Markup (text)
@@ -80,6 +82,10 @@ type Site = "default" := Resource (Get Default (JSON :<|> HTML :<|> MagicContent
            :<|> "newMessage" := ReqBody Message JSON :> Resource (Post Message JSON)
          )
        )
+       :<|> "stateful" := "stateful" :/ (
+              "increment" := "increment" :/ Resource (Post Int JSON)
+         :<|> "read" := "read" :/ Resource (Get Int JSON)
+       )
 
 site :: Proxy Site
 site = Proxy
@@ -103,7 +109,7 @@ messageIsUnread (Message { unread }) = unread
 
 resources
   :: forall m
-   . Monad m
+   . MonadEffect m
   => { default :: { "GET" :: Handler m Default }
      , admin :: String -> { "GET" :: Handler m Admin }
      , api ::
@@ -114,6 +120,10 @@ resources
          , newMessage :: Message -> { "POST" :: Handler m Message }
          }
        }
+      , stateful :: 
+        { increment :: { "POST" :: Handler m Int }
+        , read :: { "GET" :: Handler m Int }
+        }
      }
 resources =
   { default: { "GET": pure Default }
@@ -146,4 +156,12 @@ resources =
       , newMessage: \message -> { "POST": pure message }
       }
     }
+  , stateful:
+    { increment: { "POST": liftEffect incrementStatefulVariable }
+    , read: { "GET": liftEffect getStatefulVariable }
+    }
   }
+
+-- Don't want to deal with AVar and converting the test Site into a ReaderT, so here's a lovely hack
+foreign import incrementStatefulVariable :: Effect Int
+foreign import getStatefulVariable :: Effect Int
