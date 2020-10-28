@@ -2,16 +2,16 @@
 module Nodetrout.Internal.Content (negotiate) where
 
 import Prelude
+
 import Control.Alternative ((<|>))
 import Control.Monad.Except (ExceptT, throwError)
 import Data.Array (catMaybes, elem, elemIndex, length)
 import Data.List.NonEmpty (NonEmptyList, find, head, reverse, sortBy)
 import Data.Maybe (Maybe(..))
-import Data.MediaType (MediaType)
-import Data.MediaType.Common (applicationJSON, textHTML)
-import Data.String (split, trim)
+import Data.MediaType (MediaType(..))
+import Data.String (indexOf, split, trim)
 import Data.String.Pattern (Pattern(..))
-import Data.Tuple (Tuple, fst)
+import Data.Tuple (Tuple(..), fst)
 import Nodetrout.Internal.Error (HTTPError, error406)
 import Nodetrout.Internal.Request (Request, headerValue)
 
@@ -23,18 +23,18 @@ data Acceptable
 -- | Attempts to return the available content that best matches the client's
 -- | `Accept` header.
 negotiate
-  :: forall m content
+  :: forall m body rendered
    . Monad m
   => Request
-  -> NonEmptyList (Tuple MediaType content)
-  -> ExceptT HTTPError m (Tuple MediaType content)
-negotiate request available = do
+  -> NonEmptyList (Tuple MediaType (body -> rendered))
+  -> ExceptT HTTPError m body
+  -> ExceptT HTTPError m (Tuple MediaType rendered)
+negotiate request available runContent = do
   acceptable <- getAcceptable request
   case (selectContent acceptable available) of
     Nothing ->
       throwError error406 { details = Just "This content is not available in the requested format." }
-    Just content ->
-      pure content
+    Just (Tuple mediaType renderContent) -> Tuple mediaType <$> (renderContent <$> runContent)
 
 -- | Parses known media types from the client's `Accept` header.
 getAcceptable
@@ -52,10 +52,11 @@ getAcceptable =
       let
         values = trim <$> split (Pattern ",") header
         acceptable = if not $ "*/*" `elem` values then Required else Preferred
-        mimeTypes = catMaybes $ values <#> case _ of
-          "application/json" -> Just applicationJSON
-          "text/html" -> Just textHTML
-          _ -> Nothing
+        asUnparameterizedMediaType v =
+          if indexOf (Pattern ";") v == Nothing 
+          then Just (MediaType v)
+          else Nothing
+        mimeTypes = catMaybes $ values <#> asUnparameterizedMediaType
       in
         if (length mimeTypes == 0)
           then throwError error406 { details = Just "The requested media types are unsupported." }
@@ -64,10 +65,10 @@ getAcceptable =
 -- | Selects from a list of content in various formats by what format is
 -- | `Acceptable`.
 selectContent
-  :: forall content
+  :: forall body rendered
    . Acceptable
-  -> NonEmptyList (Tuple MediaType content)
-  -> Maybe (Tuple MediaType content)
+  -> NonEmptyList (Tuple MediaType (body -> rendered))
+  -> Maybe (Tuple MediaType (body -> rendered))
 selectContent = case _ of
   Anything ->
     pure <<< head

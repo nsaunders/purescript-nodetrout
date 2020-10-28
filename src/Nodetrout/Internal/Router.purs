@@ -1,12 +1,14 @@
 -- | This module contains the routing logic.
-module Nodetrout.Internal.Router (class Router, route) where
+module Nodetrout.Internal.Router (class DeferredAllMimeRender, class Router, deferredMimeRenderers, route) where
   
 import Prelude
+
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Trans.Class (lift)
 import Data.Array (null)
 import Data.Either (Either(..), note)
 import Data.HTTP.Method (fromString) as Method
+import Data.List.NonEmpty (NonEmptyList)
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
 import Data.Symbol (SProxy(..), reflectSymbol)
@@ -14,38 +16,17 @@ import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff, liftAff)
 import Nodetrout.Internal.Content (negotiate) as Content
-import Nodetrout.Internal.Error (select) as Error
 import Nodetrout.Internal.Error (HTTPError, error400, error404, error405)
+import Nodetrout.Internal.Error (select) as Error
 import Nodetrout.Internal.Request (Request)
-import Nodetrout.Internal.Request
-  ( headerValue
-  , method
-  , path
-  , queryParamValue
-  , queryParamValues
-  , removePath
-  , stringBody
-  , unconsPath
-  ) as Request
+import Nodetrout.Internal.Request (headerValue, method, path, queryParamValue, queryParamValues, removePath, stringBody, unconsPath) as Request
 import Prim.Row (class Cons, class Lacks) as Row
 import Record (delete, get) as Record
 import Type.Data.Symbol (class IsSymbol)
 import Type.Proxy (Proxy(..))
-import Type.Trout
-  ( type (:<|>)
-  , type (:>)
-  , type (:=)
-  , Capture
-  , CaptureAll
-  , Header
-  , Lit
-  , QueryParam
-  , QueryParams
-  , ReqBody
-  , Resource
-  )
 import Type.Trout (Method) as Trout
-import Type.Trout.ContentType (class AllMimeRender, class MimeParse, allMimeRender, mimeParse)
+import Type.Trout (type (:<|>), type (:>), type (:=), Capture, CaptureAll, Header, Lit, QueryParam, QueryParams, ReqBody, Resource)
+import Type.Trout.ContentType (class HasMediaType, class MimeParse, class MimeRender, getMediaType, mimeParse, mimeRender)
 import Type.Trout.Header (class FromHeader, fromHeader)
 import Type.Trout.PathPiece (class FromPathPiece, fromPathPiece)
 
@@ -202,15 +183,15 @@ instance routerReqBody ::
 instance routerMethod ::
   ( Monad m
   , IsSymbol method
-  , AllMimeRender body contentTypes rendered
+  , DeferredAllMimeRender body contentTypes rendered
   , Row.Cons method (ExceptT HTTPError m body) handlers' handlers
   ) => Router (Trout.Method method body contentTypes) (Record handlers) m (Tuple MediaType rendered) where
   route layout handlers request depth = do
     let method = SProxy :: SProxy method
     when (not $ null $ Request.path request) $ throwError error404 { priority = depth }
     when (Request.method request /= Method.fromString (reflectSymbol method)) $ throwError error405 { priority = depth }
-    body <- Record.get method handlers
-    content <- Content.negotiate request $ allMimeRender (Proxy :: Proxy contentTypes) body
+    let runBody = Record.get method handlers
+    content <- Content.negotiate request (deferredMimeRenderers (Proxy :: Proxy contentTypes)) runBody
     pure content
 
 instance routerResource ::
@@ -218,3 +199,35 @@ instance routerResource ::
   , Router layout handlers m result
   ) => Router (Resource layout) handlers m result where
   route _ = route (Proxy :: Proxy layout)
+
+
+-- | Workaround for AllMimeRender's design somewhat defeating its own point
+-- | There's no way to determine at runtime if a given `a` *can* be rendered as `ct` with some
+-- | given `MediaType`. You need to supply an `a`, and then iterate through the returned list,
+-- | in other words, `AllMimeRender` forces you to evaluate your endpoint before feeding
+-- | the result into `allMimeRender`. Of course, there's no sense in evaluating an endpoint if
+-- | the client can't consume it. In fact, it's very dangerous, because then you'd potentially perform
+-- | a stateful action but then tell the client we couldn't serve their request with the implication
+-- | that it was refused.
+-- |
+-- | This is also convenient because now Nodetrout doesn't need a bunch of repetitive
+-- | AllMimeRender instances to make routers for non-alt types.
+-- | i.e., you dont have to make `instance HasMediaType ct` and `MimeRender a ct b`
+-- | only to then make `instance AllMimeRender a ct b` which just returns a tuple of the two...
+class DeferredAllMimeRender a cts b | a -> b, cts -> b where
+  deferredMimeRenderers :: Proxy cts -> NonEmptyList (Tuple MediaType (a -> b))
+
+instance deferredAllMimeRenderExtAlt ::
+  ( HasMediaType ct1
+  , MimeRender a ct1 b
+  , DeferredAllMimeRender a ct2 b
+  ) => DeferredAllMimeRender a (ct1 :<|> ct2) b where
+    deferredMimeRenderers _ = pure (Tuple (getMediaType p) (mimeRender p)) <> (deferredMimeRenderers p')
+      where p = Proxy :: Proxy ct1
+            p' = Proxy :: Proxy ct2
+else instance deferredAllMimeRenderExtSingle ::
+  ( HasMediaType ct
+  , MimeRender a ct b
+  ) => DeferredAllMimeRender a ct b where
+    deferredMimeRenderers _ = pure (Tuple (getMediaType p) (mimeRender p))
+      where p = Proxy :: Proxy ct

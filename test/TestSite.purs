@@ -1,32 +1,25 @@
 module Test.Site where
 
 import Prelude
+
 import Control.Monad.Except (ExceptT, throwError)
 import Data.Argonaut (class DecodeJson, class EncodeJson, jsonEmptyObject)
 import Data.Array (filter)
 import Data.Either (Either(Left))
 import Data.Foldable (find, foldr)
 import Data.Maybe (Maybe(..))
+import Data.MediaType (MediaType(..))
 import Data.Newtype (class Newtype, un)
 import Data.String (contains, toLower) as String
 import Data.String.Pattern (Pattern(..))
+import Effect (Effect)
+import Effect.Class (class MonadEffect, liftEffect)
 import Nodetrout (HTTPError, error404)
 import Text.Smolder.HTML (h1)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
-import Type.Trout
-  ( type (:/)
-  , type (:<|>)
-  , type (:=)
-  , type (:>)
-  , Capture
-  , CaptureAll
-  , Header
-  , QueryParam
-  , QueryParams
-  , ReqBody
-  , Resource
-  )
+import Type.Trout (type (:/), type (:<|>), type (:=), type (:>), Capture, CaptureAll, Header, QueryParam, QueryParams, ReqBody, Resource)
+import Type.Trout.ContentType (class HasMediaType, class MimeRender)
 import Type.Trout.ContentType.HTML (HTML, class EncodeHTML)
 import Type.Trout.ContentType.JSON (JSON)
 import Type.Trout.Method (Get, Post)
@@ -39,6 +32,20 @@ instance encodeJsonDefault :: EncodeJson Default where
 
 instance encodeHTMLDefault :: EncodeHTML Default where
   encodeHTML _ = h1 $ text "Home Page"
+
+data MagicContentType
+
+magicMimeType :: MediaType
+magicMimeType = MediaType "application/magic"
+
+magicMimeTypeRenderString :: String
+magicMimeTypeRenderString = "It's magic, you know!"
+
+instance hasMediaTypeMagic :: HasMediaType MagicContentType where
+  getMediaType _ = magicMimeType
+
+instance magicallyRenderMagicContentType :: MimeRender a MagicContentType String where
+  mimeRender _ _ = magicMimeTypeRenderString
 
 newtype Message = Message { id :: Int, content :: String, unread :: Boolean }
 
@@ -65,7 +72,7 @@ data Admin = Admin String
 instance encodeHTMLAdmin :: EncodeHTML Admin where
   encodeHTML (Admin username) = h1 $ text username
 
-type Site = "default" := Resource (Get Default (JSON :<|> HTML))
+type Site = "default" := Resource (Get Default (JSON :<|> HTML :<|> MagicContentType))
        :<|> "admin" := "admin" :/ Header "Authorization" String :> Resource (Get Admin HTML)
        :<|> "api" := "api" :/ (
          "messages" := "messages" :/ (
@@ -74,6 +81,10 @@ type Site = "default" := Resource (Get Default (JSON :<|> HTML))
            :<|> "messagesById" := CaptureAll "id" Int :> Resource (Get (Array Message) JSON)
            :<|> "newMessage" := ReqBody Message JSON :> Resource (Post Message JSON)
          )
+       )
+       :<|> "stateful" := "stateful" :/ (
+              "increment" := "increment" :/ Resource (Post Int JSON)
+         :<|> "read" := "read" :/ Resource (Get Int JSON)
        )
 
 site :: Proxy Site
@@ -98,7 +109,7 @@ messageIsUnread (Message { unread }) = unread
 
 resources
   :: forall m
-   . Monad m
+   . MonadEffect m
   => { default :: { "GET" :: Handler m Default }
      , admin :: String -> { "GET" :: Handler m Admin }
      , api ::
@@ -109,6 +120,10 @@ resources
          , newMessage :: Message -> { "POST" :: Handler m Message }
          }
        }
+      , stateful :: 
+        { increment :: { "POST" :: Handler m Int }
+        , read :: { "GET" :: Handler m Int }
+        }
      }
 resources =
   { default: { "GET": pure Default }
@@ -141,4 +156,12 @@ resources =
       , newMessage: \message -> { "POST": pure message }
       }
     }
+  , stateful:
+    { increment: { "POST": liftEffect incrementStatefulVariable }
+    , read: { "GET": liftEffect getStatefulVariable }
+    }
   }
+
+-- Don't want to deal with AVar and converting the test Site into a ReaderT, so here's a lovely hack
+foreign import incrementStatefulVariable :: Effect Int
+foreign import getStatefulVariable :: Effect Int
