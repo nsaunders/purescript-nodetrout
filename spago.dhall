@@ -6,6 +6,7 @@
     "https://github.com/nsaunders/purescript-nodetrout.git"
 , dependencies =
     [ "argonaut"
+    , "bytestrings"
     , "b64"
     , "console"
     , "effect"

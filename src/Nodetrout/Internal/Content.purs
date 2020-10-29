@@ -8,12 +8,12 @@ import Control.Monad.Except (ExceptT, throwError)
 import Data.Array (catMaybes, elem, elemIndex, length)
 import Data.List.NonEmpty (NonEmptyList, find, head, reverse, sortBy)
 import Data.Maybe (Maybe(..))
-import Data.MediaType (MediaType(..))
-import Data.String (indexOf, split, trim)
+import Data.MediaType (MediaType)
+import Data.String (split, trim)
 import Data.String.Pattern (Pattern(..))
 import Data.Tuple (Tuple(..), fst)
 import Nodetrout.Internal.Error (HTTPError, error406)
-import Nodetrout.Internal.Request (Request, headerValue)
+import Nodetrout.Internal.Request (Request, headerValue, toUnparameterizedMediaType)
 
 data Acceptable
   = Required (Array MediaType)
@@ -52,11 +52,7 @@ getAcceptable =
       let
         values = trim <$> split (Pattern ",") header
         acceptable = if not $ "*/*" `elem` values then Required else Preferred
-        asUnparameterizedMediaType v =
-          if indexOf (Pattern ";") v == Nothing 
-          then Just (MediaType v)
-          else Nothing
-        mimeTypes = catMaybes $ values <#> asUnparameterizedMediaType
+        mimeTypes = catMaybes $ values <#> toUnparameterizedMediaType
       in
         if (length mimeTypes == 0)
           then throwError error406 { details = Just "The requested media types are unsupported." }

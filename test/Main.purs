@@ -5,6 +5,7 @@ import Prelude
 import Control.Monad.Except (runExceptT, throwError)
 import Data.Argonaut (decodeJson, encodeJson, jsonParser, stringify)
 import Data.Array (filter)
+import Data.ByteString (ByteString, toUTF8)
 import Data.Either (Either(..))
 import Data.Foldable (find)
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -19,7 +20,7 @@ import Foreign.Object (insert, singleton) as FO
 import Nodetrout.Internal.Error (HTTPError)
 import Nodetrout.Internal.Request (Request(..))
 import Nodetrout.Internal.Router (route)
-import Test.Site (Default(..), magicMimeType, magicMimeTypeRenderString, messageHasContent, messageHasId, messageIsUnread, messages, resources, site)
+import Test.Site (Default(..), ParseMethodDetect(..), magicMimeType, magicMimeTypeRenderString, messageHasContent, messageHasId, messageIsUnread, messages, resources, site)
 import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter (consoleReporter)
@@ -29,7 +30,7 @@ type RequestSpec =
   { method :: String
   , url :: String
   , headers :: Object String
-  , stringBody :: Aff (Maybe String)
+  , bytestringBody :: Aff (Maybe ByteString)
   } 
 
 defaultRequest :: RequestSpec
@@ -37,7 +38,7 @@ defaultRequest =
   { method: "GET"
   , url: "/"
   , headers: FO.singleton "accept" "*/*"
-  , stringBody: pure Nothing
+  , bytestringBody: pure Nothing
   }
 
 processRequest :: forall m. Monad m => MonadAff m => RequestSpec -> m (Either HTTPError (Tuple MediaType String))
@@ -94,13 +95,60 @@ main = launchAff_ $ runSpec [consoleReporter] do
       result <- processRequest $ defaultRequest
                   { method = "POST"
                   , url = "/api/messages"
-                  , stringBody = pure $ Just reqBody
+                  , bytestringBody = pure $ Just (toUTF8 reqBody)
                   }
       case result of
         Left error ->
           fail $ "Request failed unexpectedly: " <> show error
         Right (Tuple _ content) -> do
           content `shouldEqual` reqBody
+    it "should determine how to best parse the request body from the Content-Type request header when it's JSON" do
+      let reqBody = stringify $ encodeJson { }
+          encodedDetectedParseMethod = stringify $ encodeJson ParsedJson
+      result <- processRequest $ defaultRequest
+                  { method = "POST"
+                  , url = "/multiparse"
+                  , headers = FO.insert "content-type" "application/json" defaultRequest.headers
+                  , bytestringBody = pure $ Just (toUTF8 reqBody)
+                  }
+      case result of
+        Left error ->
+          fail $ "Request failed unexpectedly: " <> show error
+        Right (Tuple _ content) -> do
+          content `shouldEqual` encodedDetectedParseMethod
+    it "should determine how to best parse the request body from the Content-Type request header when it's something else" do
+      let reqBody = stringify $ encodeJson { }
+          encodedDetectedParseMethod = stringify $ encodeJson ParsedMagic
+      result <- processRequest $ defaultRequest
+                  { method = "POST"
+                  , url = "/multiparse"
+                  , headers = FO.insert "content-type" "application/magic" defaultRequest.headers
+                  , bytestringBody = pure $ Just (toUTF8 reqBody)
+                  }
+      case result of
+        Left error ->
+          fail $ "Request failed unexpectedly: " <> show error
+        Right (Tuple _ content) -> do
+          content `shouldEqual` encodedDetectedParseMethod
+    it "should determine how to best parse the request body when the Content-Type header is unspecified, taking the first successful parser" do
+        let encodedParsedJson = stringify $ encodeJson ParsedJson
+            encodedParsedMagic = stringify $ encodeJson ParsedMagic
+            mkReq body = defaultRequest { method = "POST"
+                                        , url = "/multiparse"
+                                        , bytestringBody = pure $ Just (toUTF8 body)
+                                        }
+        processRequest (mkReq "garbage") >>= case _ of
+          Left error ->
+            fail $ "Request failed unexpectedly: " <> show error
+          Right (Tuple _ content) -> do
+            content `shouldEqual` encodedParsedMagic
+
+        processRequest (mkReq "{}") >>= case _ of
+          Left error ->
+            fail $ "Request failed unexpectedly: " <> show error
+          Right (Tuple _ content) -> do
+            content `shouldEqual` encodedParsedJson
+
   describe "content negotiation" do
     it "should deliver the content in the client's preferred format when available" do
       result <- processRequest $ defaultRequest { headers = FO.insert "accept" "text/html" defaultRequest.headers }

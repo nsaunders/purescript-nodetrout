@@ -3,8 +3,9 @@ module Test.Site where
 import Prelude
 
 import Control.Monad.Except (ExceptT, throwError)
-import Data.Argonaut (class DecodeJson, class EncodeJson, jsonEmptyObject)
+import Data.Argonaut (class DecodeJson, class EncodeJson, encodeJson, jsonEmptyObject)
 import Data.Array (filter)
+import Data.ByteString (ByteString)
 import Data.Either (Either(Left))
 import Data.Foldable (find, foldr)
 import Data.Maybe (Maybe(..))
@@ -19,7 +20,7 @@ import Text.Smolder.HTML (h1)
 import Text.Smolder.Markup (text)
 import Type.Proxy (Proxy(..))
 import Type.Trout (type (:/), type (:<|>), type (:=), type (:>), Capture, CaptureAll, Header, QueryParam, QueryParams, ReqBody, Resource)
-import Type.Trout.ContentType (class HasMediaType, class MimeRender)
+import Type.Trout.ContentType (class HasMediaType, class MimeParse, class MimeRender)
 import Type.Trout.ContentType.HTML (HTML, class EncodeHTML)
 import Type.Trout.ContentType.JSON (JSON)
 import Type.Trout.Method (Get, Post)
@@ -72,6 +73,18 @@ data Admin = Admin String
 instance encodeHTMLAdmin :: EncodeHTML Admin where
   encodeHTML (Admin username) = h1 $ text username
 
+data ParseMethodDetect = ParsedJson | ParsedMagic
+
+instance encodeJsonParseMethodDetect :: EncodeJson ParseMethodDetect where
+  encodeJson ParsedJson = encodeJson { parsed: "json" }
+  encodeJson ParsedMagic = encodeJson { parsed: "magic" }
+
+instance decodeJsonParseMethodDetect :: DecodeJson ParseMethodDetect where
+  decodeJson _ = pure ParsedJson
+
+instance mimeParseParseMethodDetectMagic :: MimeParse ByteString MagicContentType ParseMethodDetect where
+  mimeParse _ _ = pure ParsedMagic
+
 type Site = "default" := Resource (Get Default (JSON :<|> HTML :<|> MagicContentType))
        :<|> "admin" := "admin" :/ Header "Authorization" String :> Resource (Get Admin HTML)
        :<|> "api" := "api" :/ (
@@ -85,6 +98,10 @@ type Site = "default" := Resource (Get Default (JSON :<|> HTML :<|> MagicContent
        :<|> "stateful" := "stateful" :/ (
               "increment" := "increment" :/ Resource (Post Int JSON)
          :<|> "read" := "read" :/ Resource (Get Int JSON)
+       )
+       -- we don't care what the return value gets encoded as
+       :<|> "multiparse" := (
+              "multiparse" :/ ReqBody ParseMethodDetect (JSON :<|> MagicContentType) :> Resource (Post ParseMethodDetect JSON)
        )
 
 site :: Proxy Site
@@ -120,11 +137,12 @@ resources
          , newMessage :: Message -> { "POST" :: Handler m Message }
          }
        }
-      , stateful :: 
-        { increment :: { "POST" :: Handler m Int }
-        , read :: { "GET" :: Handler m Int }
-        }
-     }
+    , stateful :: 
+      { increment :: { "POST" :: Handler m Int }
+      , read :: { "GET" :: Handler m Int }
+      }
+    , multiparse :: ParseMethodDetect -> { "POST" :: Handler m ParseMethodDetect }
+    }
 resources =
   { default: { "GET": pure Default }
   , admin: \username -> { "GET": pure (Admin username) }
@@ -160,6 +178,7 @@ resources =
     { increment: { "POST": liftEffect incrementStatefulVariable }
     , read: { "GET": liftEffect getStatefulVariable }
     }
+  , multiparse: \p -> { "POST": pure p }
   }
 
 -- Don't want to deal with AVar and converting the test Site into a ReaderT, so here's a lovely hack

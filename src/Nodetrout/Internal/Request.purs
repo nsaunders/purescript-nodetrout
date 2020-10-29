@@ -3,27 +3,31 @@
 -- | server (bad for testability).
 module Nodetrout.Internal.Request
   ( Request(..)
+  , bytestringBody
   , headerValue
   , method
   , path
   , queryParamValue
   , queryParamValues
   , removePath
-  , stringBody
+  , toUnparameterizedMediaType
   , unconsPath
   ) where
 
 import Prelude
+
 import Data.Array (catMaybes, filter, head, uncons)
+import Data.ByteString (ByteString)
 import Data.Either (Either)
 import Data.Foldable (find)
-import Data.Maybe (Maybe(..), fromMaybe)
 import Data.FormURLEncoded (FormURLEncoded(..))
 import Data.FormURLEncoded (decode) as FUE
 import Data.HTTP.Method (CustomMethod, Method)
 import Data.HTTP.Method (fromString) as Method
+import Data.Maybe (Maybe(..), fromMaybe)
+import Data.MediaType (MediaType(..))
 import Data.Newtype (class Newtype, un)
-import Data.String (joinWith, split, toLower) as String
+import Data.String (indexOf, joinWith, split, toLower) as String
 import Data.String.CodeUnits (drop, dropWhile, takeWhile) as String
 import Data.String.Pattern (Pattern(..))
 import Data.Tuple (Tuple(..), fst, snd)
@@ -38,7 +42,7 @@ newtype Request = Request
   { method :: String
   , url :: String
   , headers :: Object String
-  , stringBody :: Aff (Maybe String)
+  , bytestringBody :: Aff (Maybe ByteString)
   }
 
 derive instance newtypeRequest :: Newtype Request _
@@ -61,8 +65,8 @@ headers :: Request -> Object String
 headers = _.headers <<< un Request
 
 -- | Gets the request body as a string.
-stringBody :: Request -> Aff (Maybe String)
-stringBody = _.stringBody <<< un Request
+bytestringBody :: Request -> Aff (Maybe ByteString)
+bytestringBody = _.bytestringBody <<< un Request
 
 -- | Replaces the request path. Useful for scoping when routing the request.
 replacePath :: Array String -> Request -> Request
@@ -102,3 +106,12 @@ queryParamValues label = catMaybes <<< map snd <<< filter (eq label <<< fst) <<<
 -- | of `?foo=bar&foo=baz`, this would return a string `"bar"`.
 queryParamValue :: String -> Request -> Maybe String
 queryParamValue label = head <<< queryParamValues label
+
+-- | Attempts to convert a MIME type header value (e.g. Content-Type or Accept)
+-- | into a MediaType, rejecting any MIME types that are parameterized
+-- | (e.g. text/plain is OK, text/plain;utf-8 is not)
+toUnparameterizedMediaType :: String -> Maybe MediaType
+toUnparameterizedMediaType v =
+  if String.indexOf (Pattern ";") v == Nothing 
+  then Just (MediaType v)
+  else Nothing
