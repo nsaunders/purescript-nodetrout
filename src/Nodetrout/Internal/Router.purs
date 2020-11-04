@@ -1,11 +1,23 @@
 -- | This module contains the routing logic.
-module Nodetrout.Internal.Router (class DeferredAllMimeRender, class Router, deferredMimeRenderers, route) where
+module Nodetrout.Internal.Router
+  ( class AllMimeParse
+  , class DeferredAllMimeRender
+  , class FromByteString
+  , class Router
+  , allMimeParse
+  , deferredMimeRenderers
+  , fromByteString
+  , route
+  ) where
   
 import Prelude
 
+import Control.Alt ((<|>))
 import Control.Monad.Except (ExceptT, runExceptT, throwError)
 import Control.Monad.Trans.Class (lift)
 import Data.Array (null)
+import Data.ByteString (ByteString)
+import Data.ByteString as ByteString
 import Data.Either (Either(..), note)
 import Data.HTTP.Method (fromString) as Method
 import Data.List.NonEmpty (NonEmptyList)
@@ -15,11 +27,12 @@ import Data.Symbol (SProxy(..), reflectSymbol)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff, liftAff)
+import Nodetrout.Internal.Content (class ResponseWritable, ResponseWriter, mkResponseWriter)
 import Nodetrout.Internal.Content (negotiate) as Content
 import Nodetrout.Internal.Error (HTTPError, error400, error404, error405)
 import Nodetrout.Internal.Error (select) as Error
-import Nodetrout.Internal.Request (Request)
-import Nodetrout.Internal.Request (headerValue, method, path, queryParamValue, queryParamValues, removePath, stringBody, unconsPath) as Request
+import Nodetrout.Internal.Request (Request, headerValue)
+import Nodetrout.Internal.Request (bytestringBody, headerValue, method, path, queryParamValue, queryParamValues, removePath, toUnparameterizedMediaType, unconsPath) as Request
 import Prim.Row (class Cons, class Lacks) as Row
 import Record (delete, get) as Record
 import Type.Data.Symbol (class IsSymbol)
@@ -167,25 +180,26 @@ instance routerReqBody ::
   ( Monad m
   , MonadAff m
   , Router layout handlers m result
-  , MimeParse String contentType parsed
+  , AllMimeParse contentType parsed
   ) => Router (ReqBody parsed contentType :> layout) (parsed -> handlers) m result where
   route _ handlers request depth =
-    liftAff (Request.stringBody request) >>= case _ of
+    liftAff (Request.bytestringBody request) >>= case _ of
       Just body ->
-        case mimeParse (Proxy :: Proxy contentType) body of
-          Right parsed ->
-            route (Proxy :: Proxy layout) (handlers parsed) request $ depth + 1
-          Left e ->
-            throwError error400 { priority = depth, details = Just ("Request body not in expected format: " <> e) }
+        let bodyContentType = Request.toUnparameterizedMediaType =<< headerValue "content-type" request
+         in case allMimeParse (Proxy :: Proxy contentType) bodyContentType body of
+              Right parsed ->
+                route (Proxy :: Proxy layout) (handlers parsed) request $ depth + 1
+              Left e ->
+                throwError error400 { priority = depth, details = Just ("Request body not in expected format: " <> e) }
       Nothing ->
         throwError error400 { priority = depth, details = Just "A request body is required, but none was provided." }
 
 instance routerMethod ::
   ( Monad m
   , IsSymbol method
-  , DeferredAllMimeRender body contentTypes rendered
+  , DeferredAllMimeRender body contentTypes
   , Row.Cons method (ExceptT HTTPError m body) handlers' handlers
-  ) => Router (Trout.Method method body contentTypes) (Record handlers) m (Tuple MediaType rendered) where
+  ) => Router (Trout.Method method body contentTypes) (Record handlers) m (Tuple MediaType ResponseWriter) where
   route layout handlers request depth = do
     let method = SProxy :: SProxy method
     when (not $ null $ Request.path request) $ throwError error404 { priority = depth }
@@ -214,20 +228,66 @@ instance routerResource ::
 -- | AllMimeRender instances to make routers for non-alt types.
 -- | i.e., you dont have to make `instance HasMediaType ct` and `MimeRender a ct b`
 -- | only to then make `instance AllMimeRender a ct b` which just returns a tuple of the two...
-class DeferredAllMimeRender a cts b | a -> b, cts -> b where
-  deferredMimeRenderers :: Proxy cts -> NonEmptyList (Tuple MediaType (a -> b))
+class DeferredAllMimeRender a cts where
+  deferredMimeRenderers ::Proxy cts -> NonEmptyList (Tuple MediaType (a -> ResponseWriter))
 
 instance deferredAllMimeRenderExtAlt ::
   ( HasMediaType ct1
-  , MimeRender a ct1 b
-  , DeferredAllMimeRender a ct2 b
-  ) => DeferredAllMimeRender a (ct1 :<|> ct2) b where
-    deferredMimeRenderers _ = pure (Tuple (getMediaType p) (mimeRender p)) <> (deferredMimeRenderers p')
+  , MimeRender a ct1 b1
+  , ResponseWritable b1
+  , DeferredAllMimeRender a ct2
+  ) => DeferredAllMimeRender a (ct1 :<|> ct2) where
+    deferredMimeRenderers _ = pure (Tuple (getMediaType p) (mkResponseWriter <<< mimeRender p)) <> (wrapResponseWriter $ deferredMimeRenderers p')
       where p = Proxy :: Proxy ct1
             p' = Proxy :: Proxy ct2
+            pb1 = Proxy :: Proxy b1
+            wrapResponseWriter = map (map (map mkResponseWriter))
 else instance deferredAllMimeRenderExtSingle ::
   ( HasMediaType ct
-  , MimeRender a ct b
-  ) => DeferredAllMimeRender a ct b where
-    deferredMimeRenderers _ = pure (Tuple (getMediaType p) (mimeRender p))
+  , MimeRender a ct b2
+  , ResponseWritable b2
+  ) => DeferredAllMimeRender a ct where
+    deferredMimeRenderers _ = pure (Tuple (getMediaType p) (mkResponseWriter <<< mimeRender p))
       where p = Proxy :: Proxy ct
+
+-- | This is kinda like deferredAllMimeRender above, but for `ReqBodies`
+class AllMimeParse cts a | cts -> a where
+  allMimeParse :: Proxy cts -> Maybe MediaType -> ByteString -> Either String a
+
+instance allMimeParseAlt ::
+  ( AllMimeParse ct1 a
+  , AllMimeParse ct2 a
+  ) => AllMimeParse (ct1 :<|> ct2) a where
+    allMimeParse _ mt body = allMimeParse p1 mt body <|> allMimeParse p2 mt body
+      where p1 = Proxy :: Proxy ct1
+            p2 = Proxy :: Proxy ct2
+else instance allMimeParseSingle ::
+  ( HasMediaType ct
+  , FromByteString b
+  , MimeParse b ct a
+  ) => AllMimeParse ct a where
+    allMimeParse _ mt =
+      let go = mimeParse p <<< fromByteString
+          p = Proxy :: Proxy ct
+       in case mt of
+            Nothing -> go
+            Just mt' -> if mt' == getMediaType p
+                        then go
+                        else \_ -> Left "Content-Type is not supported by this server"
+
+-- | This is needed because PureScript's instance resolution doesn't behave as expected. 
+-- | The above AllMimeParse instances would ideally be:
+-- |   instance ampAlt :: (AMP ct1 a, AMP ct2 a) => AMP (ct1 :<|> ct2) a
+-- |   else instance ampBS :: (HasMediaType ct, MimeParse BS ct a) => AMP ct a
+-- |   else instance ampStr :: (HasMediaType ct, MimeParse String ct a) => AMP ct a
+-- | However, `purs` will instead stick to expecting everything to be whatever is the first `else instance`, 
+-- | probably to avoid undecidability. I think this is also why deferredAllMimeRenderExtAlt needs to be
+-- | explicit in its first `Alt` argument. However, there's a possibility for a need of n^2 instances in the case of
+-- | AllMimeParse, so this lets us avoid that
+class FromByteString a where
+  fromByteString :: ByteString -> a
+
+instance fromByteStringBS :: FromByteString ByteString where
+  fromByteString x = x
+instance isBSIsoString :: FromByteString String where
+  fromByteString = ByteString.fromUTF8
