@@ -2,6 +2,7 @@
 module Nodetrout (serve, serve', module Error) where
 
 import Prelude
+
 import Data.MediaType (MediaType)
 import Data.Tuple (Tuple)
 import Effect (Effect)
@@ -9,6 +10,7 @@ import Effect.Aff (Aff)
 import Effect.Class (class MonadEffect)
 import Effect.Exception (Error)
 import Node.HTTP (Request, Response) as NH
+import Nodetrout.Internal.Content (class ResponseWritable)
 import Nodetrout.Internal.Error
   ( HTTPError
   , error300
@@ -55,7 +57,7 @@ serve
   :: forall layout handlers m content
    . Monad m
   => MonadEffect m
-  => NS.ResponseWritable content
+  => ResponseWritable content
   => Router layout (Record handlers) m (Tuple MediaType content)
   => Proxy layout
   -> Record handlers
@@ -70,7 +72,7 @@ serve = NS.serve -- Note that the `serve` function is redeclared so that it appe
 -- | `ExceptT HTTPError Aff`, i.e. the inner monad is already `Aff`.
 serve'
   :: forall layout handlers content
-   . NS.ResponseWritable content
+   . ResponseWritable content
   => Router layout (Record handlers) Aff (Tuple MediaType content)
   => Proxy layout
   -> Record handlers

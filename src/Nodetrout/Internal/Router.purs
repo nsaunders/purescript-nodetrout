@@ -1,12 +1,12 @@
 -- | This module contains the routing logic.
 module Nodetrout.Internal.Router
   ( class AllMimeParse
-  , class FromByteString
   , class DeferredAllMimeRender
+  , class FromByteString
   , class Router
   , allMimeParse
-  , fromByteString
   , deferredMimeRenderers
+  , fromByteString
   , route
   ) where
   
@@ -27,6 +27,7 @@ import Data.Symbol (SProxy(..), reflectSymbol)
 import Data.Traversable (traverse)
 import Data.Tuple (Tuple(..))
 import Effect.Aff.Class (class MonadAff, liftAff)
+import Nodetrout.Internal.Content (class ResponseWritable, ResponseWriter, mkResponseWriter)
 import Nodetrout.Internal.Content (negotiate) as Content
 import Nodetrout.Internal.Error (HTTPError, error400, error404, error405)
 import Nodetrout.Internal.Error (select) as Error
@@ -196,9 +197,9 @@ instance routerReqBody ::
 instance routerMethod ::
   ( Monad m
   , IsSymbol method
-  , DeferredAllMimeRender body contentTypes rendered
+  , DeferredAllMimeRender body contentTypes
   , Row.Cons method (ExceptT HTTPError m body) handlers' handlers
-  ) => Router (Trout.Method method body contentTypes) (Record handlers) m (Tuple MediaType rendered) where
+  ) => Router (Trout.Method method body contentTypes) (Record handlers) m (Tuple MediaType ResponseWriter) where
   route layout handlers request depth = do
     let method = SProxy :: SProxy method
     when (not $ null $ Request.path request) $ throwError error404 { priority = depth }
@@ -227,22 +228,26 @@ instance routerResource ::
 -- | AllMimeRender instances to make routers for non-alt types.
 -- | i.e., you dont have to make `instance HasMediaType ct` and `MimeRender a ct b`
 -- | only to then make `instance AllMimeRender a ct b` which just returns a tuple of the two...
-class DeferredAllMimeRender a cts b | a -> b, cts -> b where
-  deferredMimeRenderers :: Proxy cts -> NonEmptyList (Tuple MediaType (a -> b))
+class DeferredAllMimeRender a cts where
+  deferredMimeRenderers ::Proxy cts -> NonEmptyList (Tuple MediaType (a -> ResponseWriter))
 
 instance deferredAllMimeRenderExtAlt ::
   ( HasMediaType ct1
-  , MimeRender a ct1 b
-  , DeferredAllMimeRender a ct2 b
-  ) => DeferredAllMimeRender a (ct1 :<|> ct2) b where
-    deferredMimeRenderers _ = pure (Tuple (getMediaType p) (mimeRender p)) <> (deferredMimeRenderers p')
+  , MimeRender a ct1 b1
+  , ResponseWritable b1
+  , DeferredAllMimeRender a ct2
+  ) => DeferredAllMimeRender a (ct1 :<|> ct2) where
+    deferredMimeRenderers _ = pure (Tuple (getMediaType p) (mkResponseWriter <<< mimeRender p)) <> (wrapResponseWriter $ deferredMimeRenderers p')
       where p = Proxy :: Proxy ct1
             p' = Proxy :: Proxy ct2
+            pb1 = Proxy :: Proxy b1
+            wrapResponseWriter = map (map (map mkResponseWriter))
 else instance deferredAllMimeRenderExtSingle ::
   ( HasMediaType ct
-  , MimeRender a ct b
-  ) => DeferredAllMimeRender a ct b where
-    deferredMimeRenderers _ = pure (Tuple (getMediaType p) (mimeRender p))
+  , MimeRender a ct b2
+  , ResponseWritable b2
+  ) => DeferredAllMimeRender a ct where
+    deferredMimeRenderers _ = pure (Tuple (getMediaType p) (mkResponseWriter <<< mimeRender p))
       where p = Proxy :: Proxy ct
 
 -- | This is kinda like deferredAllMimeRender above, but for `ReqBodies`
@@ -262,7 +267,7 @@ else instance allMimeParseSingle ::
   , MimeParse b ct a
   ) => AllMimeParse ct a where
     allMimeParse _ mt =
-      let go = mimeParse p <<< fromByteString 
+      let go = mimeParse p <<< fromByteString
           p = Proxy :: Proxy ct
        in case mt of
             Nothing -> go

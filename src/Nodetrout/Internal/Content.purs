@@ -1,17 +1,28 @@
 -- | This module contains types and logic related to content negotiation.
-module Nodetrout.Internal.Content (negotiate) where
+module Nodetrout.Internal.Content
+  ( class ResponseWritable
+  , ResponseWriter
+  , mkResponseWriter
+  , negotiate
+  , writeResponse
+  ) where
 
 import Prelude
 
 import Control.Alternative ((<|>))
 import Control.Monad.Except (ExceptT, throwError)
 import Data.Array (catMaybes, elem, elemIndex, length)
+import Data.ByteString (ByteString)
+import Data.ByteString as ByteString
 import Data.List.NonEmpty (NonEmptyList, find, head, reverse, sortBy)
 import Data.Maybe (Maybe(..))
 import Data.MediaType (MediaType)
 import Data.String (split, trim)
 import Data.String.Pattern (Pattern(..))
 import Data.Tuple (Tuple(..), fst)
+import Effect (Effect)
+import Node.Encoding (Encoding(UTF8))
+import Node.Stream (Writable, write, writeString) as Stream
 import Nodetrout.Internal.Error (HTTPError, error406)
 import Nodetrout.Internal.Request (Request, headerValue, toUnparameterizedMediaType)
 
@@ -23,12 +34,12 @@ data Acceptable
 -- | Attempts to return the available content that best matches the client's
 -- | `Accept` header.
 negotiate
-  :: forall m body rendered
+  :: forall m body
    . Monad m
   => Request
-  -> NonEmptyList (Tuple MediaType (body -> rendered))
+  -> NonEmptyList (Tuple MediaType (body -> ResponseWriter))
   -> ExceptT HTTPError m body
-  -> ExceptT HTTPError m (Tuple MediaType rendered)
+  -> ExceptT HTTPError m (Tuple MediaType ResponseWriter)
 negotiate request available runContent = do
   acceptable <- getAcceptable request
   case (selectContent acceptable available) of
@@ -61,10 +72,10 @@ getAcceptable =
 -- | Selects from a list of content in various formats by what format is
 -- | `Acceptable`.
 selectContent
-  :: forall body rendered
+  :: forall body
    . Acceptable
-  -> NonEmptyList (Tuple MediaType (body -> rendered))
-  -> Maybe (Tuple MediaType (body -> rendered))
+  -> NonEmptyList (Tuple MediaType (body -> ResponseWriter))
+  -> Maybe (Tuple MediaType (body -> ResponseWriter))
 selectContent = case _ of
   Anything ->
     pure <<< head
@@ -75,3 +86,19 @@ selectContent = case _ of
       find ((_ `elem` requested) <<< fst) <<< reverse <<< sortWith ((_ `elemIndex` requested) <<< fst)
   Preferred requested ->
     \available -> selectContent (Required requested) available <|> selectContent Anything available
+
+-- | Specifies how to write `content` to a response stream.
+class ResponseWritable content where
+  writeResponse :: forall r. Stream.Writable r -> content -> Effect Unit
+
+instance responseWritableString :: ResponseWritable String where
+  writeResponse stream content = Stream.writeString stream UTF8 content (pure unit) *> pure unit
+instance responseWritableByteString :: ResponseWritable ByteString where
+  writeResponse stream content = Stream.write stream (ByteString.unsafeThaw content) (pure unit) *> pure unit
+
+data ResponseWriter = ResponseWriter (forall r. Stream.Writable r -> Effect Unit)
+mkResponseWriter :: forall w. ResponseWritable w => w -> ResponseWriter
+mkResponseWriter content = ResponseWriter (\stream -> writeResponse stream content)
+
+instance responseWritableResponseWriter :: ResponseWritable ResponseWriter where
+  writeResponse stream (ResponseWriter w) = w stream

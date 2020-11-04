@@ -5,7 +5,7 @@ import Prelude
 import Control.Monad.Except (runExceptT, throwError)
 import Data.Argonaut (decodeJson, encodeJson, jsonParser, stringify)
 import Data.Array (filter)
-import Data.ByteString (ByteString, toUTF8)
+import Data.ByteString (ByteString, fromUTF8, toUTF8)
 import Data.Either (Either(..))
 import Data.Foldable (find)
 import Data.Maybe (Maybe(..), fromMaybe)
@@ -15,8 +15,11 @@ import Data.Tuple (Tuple(..))
 import Effect (Effect)
 import Effect.Aff (Aff, error, launchAff_)
 import Effect.Aff.Class (class MonadAff)
+import Effect.Class (class MonadEffect, liftEffect)
 import Foreign.Object (Object)
 import Foreign.Object (insert, singleton) as FO
+import Node.Stream as Stream
+import Nodetrout.Internal.Content (ResponseWriter, writeResponse)
 import Nodetrout.Internal.Error (HTTPError)
 import Nodetrout.Internal.Request (Request(..))
 import Nodetrout.Internal.Router (route)
@@ -25,6 +28,9 @@ import Test.Spec (describe, it)
 import Test.Spec.Assertions (fail, shouldEqual)
 import Test.Spec.Reporter (consoleReporter)
 import Test.Spec.Runner (runSpec)
+
+foreign import mkStreamBuffer :: forall m a. (a -> m a) -> m Stream.Duplex
+foreign import getStreamBufferContents :: forall m a. (a -> m a) -> Stream.Duplex -> m ByteString
 
 type RequestSpec =
   { method :: String
@@ -41,8 +47,17 @@ defaultRequest =
   , bytestringBody: pure Nothing
   }
 
+captureResponse :: forall m. MonadEffect m => ResponseWriter -> m ByteString
+captureResponse writer = do
+  streamBuffer <- mkStreamBuffer pure
+  liftEffect $ writeResponse streamBuffer writer
+  getStreamBufferContents pure streamBuffer
+
 processRequest :: forall m. Monad m => MonadAff m => RequestSpec -> m (Either HTTPError (Tuple MediaType String))
-processRequest = runExceptT <<< (\r -> route site resources r 0) <<< Request
+processRequest r = map (map fromUTF8) <$> processRequest' r
+
+processRequest' :: forall m. Monad m => MonadAff m => RequestSpec -> m (Either HTTPError (Tuple MediaType ByteString))
+processRequest' = runExceptT <<< (\r -> (route site resources r 0) >>= (\(Tuple mt resp) -> Tuple mt <$> captureResponse resp)) <<< Request
 
 main :: Effect Unit
 main = launchAff_ $ runSpec [consoleReporter] do

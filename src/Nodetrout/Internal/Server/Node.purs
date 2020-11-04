@@ -1,5 +1,5 @@
 -- | This module contains the request handling logic related to `node-http`.
-module Nodetrout.Internal.Server.Node (class ResponseWritable, serve, writeResponse) where
+module Nodetrout.Internal.Server.Node (serve) where
 
 import Prelude
 
@@ -19,7 +19,8 @@ import Node.Buffer (concat) as Buffer
 import Node.Encoding (Encoding(UTF8))
 import Node.HTTP (Request, Response) as NH
 import Node.HTTP (requestHeaders, requestMethod, requestAsStream, requestURL, responseAsStream, setHeader, setStatusCode)
-import Node.Stream (Writable, end, onData, onEnd, writeString) as Stream
+import Node.Stream (end, onData, onEnd, writeString) as Stream
+import Nodetrout.Internal.Content (class ResponseWritable, writeResponse)
 import Nodetrout.Internal.Request (Request(..))
 import Nodetrout.Internal.Router (class Router, route)
 import Type.Proxy (Proxy)
@@ -102,10 +103,3 @@ serve layout handlers runM onError req res =
           setHeader res "content-type" contentType
           writeResponse rs content
           Stream.end rs $ pure unit
-
--- | Specifies how to write `content` to a response stream.
-class ResponseWritable content where
-  writeResponse :: Stream.Writable () -> content -> Effect Unit
-
-instance responseWritableString :: ResponseWritable String where
-  writeResponse stream content = Stream.writeString stream UTF8 content (pure unit) *> pure unit

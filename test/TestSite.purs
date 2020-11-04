@@ -6,6 +6,7 @@ import Control.Monad.Except (ExceptT, throwError)
 import Data.Argonaut (class DecodeJson, class EncodeJson, encodeJson, jsonEmptyObject)
 import Data.Array (filter)
 import Data.ByteString (ByteString)
+import Data.ByteString (toUTF8) as ByteString
 import Data.Either (Either(Left))
 import Data.Foldable (find, foldr)
 import Data.Maybe (Maybe(..))
@@ -45,8 +46,8 @@ magicMimeTypeRenderString = "It's magic, you know!"
 instance hasMediaTypeMagic :: HasMediaType MagicContentType where
   getMediaType _ = magicMimeType
 
-instance magicallyRenderMagicContentType :: MimeRender a MagicContentType String where
-  mimeRender _ _ = magicMimeTypeRenderString
+instance magicallyRenderMagicContentType :: MimeRender a MagicContentType ByteString where
+  mimeRender _ _ = ByteString.toUTF8 magicMimeTypeRenderString
 
 newtype Message = Message { id :: Int, content :: String, unread :: Boolean }
 
